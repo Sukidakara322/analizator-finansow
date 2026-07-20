@@ -346,31 +346,43 @@ function escapeHtml(s) {
 }
 
 // ================= Inicjalizacja =================
-async function init() {
-  data = await window.store.load();
-  if (!data.categories || data.categories.length === 0) {
-    data.categories = ['Jedzenie', 'Transport', 'Rachunki', 'Rozrywka', 'Zdrowie', 'Ubrania', 'Inne'];
+// Aplikacja jest uruchamiana przez warstwę chmury (cloud.js) dopiero po zalogowaniu:
+//   • App.start(dane)      – pierwsze uruchomienie z danymi z chmury,
+//   • App.applyRemote(dane) – nadeszła zmiana z innego urządzenia (synchronizacja na żywo).
+let eventsBound = false;
+
+window.App = {
+  start(initialData) {
+    data = initialData || { version: 1, categories: [], months: {} };
+    if (!data.categories || data.categories.length === 0) {
+      data.categories = ['Jedzenie', 'Transport', 'Rachunki', 'Rozrywka', 'Zdrowie', 'Ubrania', 'Inne'];
+    }
+
+    currentKey = keyFromDate(new Date());
+
+    window.store.getPath().then(p => { $('#dataPath').textContent = p; });
+
+    // Bez Electron nie ma folderu na dysku — ukryj przycisk
+    if (!window.store.isElectron) {
+      const of = $('#openFolder');
+      if (of) of.hidden = true;
+    }
+
+    $('#expDate').value = new Date().toISOString().slice(0, 10);
+
+    renderCategorySelect();
+    render();
+
+    if (!eventsBound) { bindEvents(); eventsBound = true; }
+  },
+
+  // Zmiana przyszła z innego urządzenia — podmień dane i odśwież widok.
+  applyRemote(newData) {
+    data = newData;
+    renderCategorySelect();
+    render();
   }
-
-  // Ustaw bieżący miesiąc: dzisiejszy lub ostatni z zapisanych
-  currentKey = keyFromDate(new Date());
-
-  // Ścieżka / lokalizacja danych w stopce
-  window.store.getPath().then(p => { $('#dataPath').textContent = p; });
-
-  // Na telefonie (brak Electron) nie ma folderu na dysku — ukryj przycisk
-  if (!window.store.isElectron) {
-    const of = $('#openFolder');
-    if (of) of.hidden = true;
-  }
-
-  // Domyślna data w formularzu = dziś
-  $('#expDate').value = new Date().toISOString().slice(0, 10);
-
-  renderCategorySelect();
-  render();
-  bindEvents();
-}
+};
 
 function bindEvents() {
   $('#prevMonth').onclick = () => { currentKey = prevKey(currentKey); syncFormDate(); render(); };
@@ -460,5 +472,3 @@ function addCategory() {
 function syncFormDate() {
   $('#expDate').value = currentKey + '-01';
 }
-
-window.addEventListener('DOMContentLoaded', init);

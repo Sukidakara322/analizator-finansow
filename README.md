@@ -1,20 +1,26 @@
 # Analizator Finansów
 
-Aplikacja do śledzenia wydatków, zarobków i oszczędności w ujęciu **miesięcznym**. Ten sam kod działa w dwóch trybach:
+Aplikacja do śledzenia wydatków, zarobków i oszczędności w ujęciu **miesięcznym**. Działa na telefonie (PWA) i na komputerze, a dane są **przechowywane w chmurze (Firebase/Firestore) i synchronizowane na żywo** między urządzeniami.
 
-- **Na komputerze** – jako aplikacja desktopowa (Electron); dane w pliku JSON na dysku.
-- **Na telefonie** – jako PWA (aplikacja webowa instalowana na ekran główny); dane w pamięci przeglądarki, kopie przez Eksport/Import.
+## Logowanie i dane
+
+- Przy pierwszym uruchomieniu zakładasz konto (**e-mail + hasło**) i logujesz się.
+- Dane trafiają do chmury Firestore, do dokumentu `users/{twój-id}`. Reguły bezpieczeństwa sprawiają, że **tylko Ty masz do nich dostęp**.
+- Zmiany synchronizują się **na żywo** – wpisujesz na telefonie, po chwili widać na komputerze (i odwrotnie).
+- Działa **offline** – zmiany zapisują się lokalnie i dosyłają, gdy wróci internet.
+- **⬇ Eksportuj / ⬆ Importuj** – kopia zapasowa / przeniesienie danych przez plik `finanse-kopia.json`.
+
+Konfiguracja Firebase jest w [firebase-config.js](firebase-config.js). Zawarty tam `apiKey` jest publiczny z założenia (nie jest hasłem) – bezpieczeństwa pilnują logowanie i reguły Firestore.
 
 ## Wersja na telefon (PWA)
 
 Aplikacja jest hostowana na GitHub Pages. Na telefonie:
 
-1. Otwórz w przeglądarce adres GitHub Pages (patrz zakładka **Settings → Pages** w repozytorium).
-2. **iPhone (Safari):** przycisk *Udostępnij* → **Dodaj do ekranu głównego**.
+1. Otwórz adres GitHub Pages (patrz **Settings → Pages** w repozytorium).
+2. **iPhone (Safari):** *Udostępnij* → **Dodaj do ekranu głównego**.
    **Android (Chrome):** menu ⋮ → **Zainstaluj aplikację / Dodaj do ekranu głównego**.
 3. Pojawi się ikona jak przy zwykłej apce; działa też offline.
-
-Dane telefonu i komputera są **osobne**. Aby je przenieść, użyj **⬇ Eksportuj** na jednym urządzeniu i **⬆ Importuj** na drugim (plik `finanse-kopia.json`).
+4. Zaloguj się swoim kontem – te same dane co na komputerze.
 
 ## Uruchamianie
 
