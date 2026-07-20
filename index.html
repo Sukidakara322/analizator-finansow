@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>Analizator Finansów</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Nagłówek -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">💰</span>
+        <div>
+          <h1>Analizator Finansów</h1>
+          <p class="subtitle">Śledź wydatki i oszczędzaj świadomie</p>
+        </div>
+      </div>
+
+      <div class="month-nav">
+        <button id="prevMonth" class="icon-btn" title="Poprzedni miesiąc">◀</button>
+        <div class="month-label" id="monthLabel">—</div>
+        <button id="nextMonth" class="icon-btn" title="Następny miesiąc">▶</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- Karty podsumowania -->
+      <section class="cards">
+        <div class="card">
+          <label class="card-title">Stan konta na start</label>
+          <div class="card-input">
+            <input type="number" id="startingBalance" step="0.01" placeholder="0,00" />
+            <span class="unit">zł</span>
+          </div>
+          <p class="card-hint" id="carryHint"></p>
+        </div>
+
+        <div class="card">
+          <label class="card-title">Otrzymana pensja</label>
+          <div class="card-input">
+            <input type="number" id="salary" step="0.01" placeholder="0,00" />
+            <span class="unit">zł</span>
+          </div>
+          <p class="card-hint">Wpisz kwotę wynagrodzenia</p>
+        </div>
+
+        <div class="card accent-red">
+          <label class="card-title">Wydatki w tym miesiącu</label>
+          <div class="card-value" id="totalExpenses">0,00 zł</div>
+          <p class="card-hint" id="expenseCount">0 pozycji</p>
+        </div>
+
+        <div class="card accent-green">
+          <label class="card-title">Aktualny stan konta</label>
+          <div class="card-value" id="currentBalance">0,00 zł</div>
+          <p class="card-hint" id="balanceDelta"></p>
+        </div>
+      </section>
+
+      <!-- Wpływ na pensję / oszczędności -->
+      <section class="panel">
+        <h2>Wpływ na pensję</h2>
+        <div class="impact">
+          <div class="impact-row">
+            <span>Wydano z pensji</span>
+            <span id="spentPct">0%</span>
+          </div>
+          <div class="bar">
+            <div class="bar-fill" id="spentBar"></div>
+          </div>
+          <div class="impact-legend">
+            <div><span class="dot dot-spent"></span> Wydatki: <b id="impSpent">0,00 zł</b></div>
+            <div><span class="dot dot-saved"></span> Zaoszczędzono: <b id="impSaved">0,00 zł</b></div>
+            <div class="impact-rate">Stopa oszczędności: <b id="savingRate">0%</b></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid-2">
+        <!-- Dodawanie wydatku -->
+        <section class="panel">
+          <h2>Dodaj wydatek</h2>
+          <form id="expenseForm" class="expense-form">
+            <div class="field">
+              <label>Kategoria</label>
+              <div class="cat-row">
+                <select id="expCategory"></select>
+                <button type="button" id="manageCats" class="ghost-btn" title="Zarządzaj kategoriami">⚙</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Nazwa / opis</label>
+              <input type="text" id="expName" placeholder="np. Zakupy w Biedronce" />
+            </div>
+            <div class="field-inline">
+              <div class="field">
+                <label>Kwota</label>
+                <input type="number" id="expAmount" step="0.01" placeholder="0,00" />
+              </div>
+              <div class="field">
+                <label>Data</label>
+                <input type="date" id="expDate" />
+              </div>
+            </div>
+            <button type="submit" class="primary-btn">+ Dodaj wydatek</button>
+          </form>
+        </section>
+
+        <!-- Wykres kołowy kategorii -->
+        <section class="panel">
+          <h2>Wydatki wg kategorii</h2>
+          <div class="donut-wrap">
+            <div id="donut" class="donut"></div>
+            <div id="donutLegend" class="donut-legend"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Lista wydatków pogrupowana -->
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Lista wydatków</h2>
+          <div class="view-toggle">
+            <button class="toggle-btn active" data-view="grouped">Wg kategorii</button>
+            <button class="toggle-btn" data-view="flat">Chronologicznie</button>
+          </div>
+        </div>
+        <div id="expenseList" class="expense-list"></div>
+      </section>
+
+      <!-- Porównanie miesięcy -->
+      <section class="panel">
+        <h2>Porównanie miesięcy</h2>
+        <div id="monthlyChart" class="monthly-chart"></div>
+        <div class="chart-legend">
+          <div><span class="dot dot-salary"></span> Pensja</div>
+          <div><span class="dot dot-spent"></span> Wydatki</div>
+          <div><span class="dot dot-saved"></span> Oszczędności</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Stopka -->
+    <footer class="footbar">
+      <div class="path-info">
+        <span>Dane zapisywane w:</span>
+        <code id="dataPath">—</code>
+      </div>
+      <div class="foot-actions">
+        <button id="openFolder" class="ghost-btn">📁 Otwórz folder</button>
+        <button id="exportBtn" class="ghost-btn">⬇ Eksportuj</button>
+        <button id="importBtn" class="ghost-btn">⬆ Importuj</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Okno zarządzania kategoriami -->
+  <div class="modal-overlay" id="catModal" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h3>Kategorie</h3>
+        <button id="closeCatModal" class="icon-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="add-cat">
+          <input type="text" id="newCatName" placeholder="Nazwa nowej kategorii" />
+          <button id="addCatBtn" class="primary-btn">Dodaj</button>
+        </div>
+        <ul id="catList" class="cat-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Powiadomienia -->
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

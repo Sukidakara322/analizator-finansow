@@ -1,0 +1,14 @@
+{
+  "name": "analizator-finansow",
+  "version": "1.0.0",
+  "description": "Analizator Finansów – śledzenie wydatków, zarobków i oszczędności miesięcznie",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

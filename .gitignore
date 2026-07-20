@@ -1,0 +1,18 @@
+# Zależności (odtwarzane przez `npm install`)
+node_modules/
+
+# Dane osobiste (finanse) — NIE wysyłać na GitHub
+dane/
+
+# Pliki tymczasowe
+*.tmp
+*.log
+
+# Systemowe
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Foldery build (na przyszłość, gdyby pakować do .exe)
+dist/
+out/
