@@ -2,8 +2,20 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; manifest-src 'self'" />
   <title>Analizator Finansów</title>
+
+  <!-- PWA / instalacja na telefonie -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0f1420" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Finanse" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -176,6 +188,7 @@
   <!-- Powiadomienia -->
   <div id="toast" class="toast" hidden></div>
 
+  <script src="storage.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

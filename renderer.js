@@ -69,7 +69,7 @@ function monthTotals(key) {
 let saveTimer = null;
 function saveData(immediate = false) {
   clearTimeout(saveTimer);
-  const doSave = () => window.api.save(data);
+  const doSave = () => window.store.save(data);
   if (immediate) doSave();
   else saveTimer = setTimeout(doSave, 400);
 }
@@ -347,7 +347,7 @@ function escapeHtml(s) {
 
 // ================= Inicjalizacja =================
 async function init() {
-  data = await window.api.load();
+  data = await window.store.load();
   if (!data.categories || data.categories.length === 0) {
     data.categories = ['Jedzenie', 'Transport', 'Rachunki', 'Rozrywka', 'Zdrowie', 'Ubrania', 'Inne'];
   }
@@ -355,8 +355,14 @@ async function init() {
   // Ustaw bieżący miesiąc: dzisiejszy lub ostatni z zapisanych
   currentKey = keyFromDate(new Date());
 
-  // Ścieżka pliku w stopce
-  window.api.getPath().then(p => { $('#dataPath').textContent = p; });
+  // Ścieżka / lokalizacja danych w stopce
+  window.store.getPath().then(p => { $('#dataPath').textContent = p; });
+
+  // Na telefonie (brak Electron) nie ma folderu na dysku — ukryj przycisk
+  if (!window.store.isElectron) {
+    const of = $('#openFolder');
+    if (of) of.hidden = true;
+  }
 
   // Domyślna data w formularzu = dziś
   $('#expDate').value = new Date().toISOString().slice(0, 10);
@@ -414,14 +420,14 @@ function bindEvents() {
   $('#newCatName').addEventListener('keydown', (e) => { if (e.key === 'Enter') addCategory(); });
 
   // Stopka: folder / eksport / import
-  $('#openFolder').onclick = () => window.api.openFolder();
+  $('#openFolder').onclick = () => window.store.openFolder();
   $('#exportBtn').onclick = async () => {
-    const res = await window.api.exportData(data);
+    const res = await window.store.exportData(data);
     if (res.ok) toast('Wyeksportowano kopię danych');
   };
   $('#importBtn').onclick = async () => {
     if (!confirm('Import zastąpi obecne dane. Kontynuować?')) return;
-    const res = await window.api.importData();
+    const res = await window.store.importData();
     if (res.ok) {
       data = res.data;
       renderCategorySelect();

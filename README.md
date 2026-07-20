@@ -1,6 +1,20 @@
 # Analizator Finansów
 
-Aplikacja desktopowa (Electron) do śledzenia wydatków, zarobków i oszczędności w ujęciu **miesięcznym**. Wszystkie dane przechowywane są lokalnie w pliku JSON na Twoim dysku.
+Aplikacja do śledzenia wydatków, zarobków i oszczędności w ujęciu **miesięcznym**. Ten sam kod działa w dwóch trybach:
+
+- **Na komputerze** – jako aplikacja desktopowa (Electron); dane w pliku JSON na dysku.
+- **Na telefonie** – jako PWA (aplikacja webowa instalowana na ekran główny); dane w pamięci przeglądarki, kopie przez Eksport/Import.
+
+## Wersja na telefon (PWA)
+
+Aplikacja jest hostowana na GitHub Pages. Na telefonie:
+
+1. Otwórz w przeglądarce adres GitHub Pages (patrz zakładka **Settings → Pages** w repozytorium).
+2. **iPhone (Safari):** przycisk *Udostępnij* → **Dodaj do ekranu głównego**.
+   **Android (Chrome):** menu ⋮ → **Zainstaluj aplikację / Dodaj do ekranu głównego**.
+3. Pojawi się ikona jak przy zwykłej apce; działa też offline.
+
+Dane telefonu i komputera są **osobne**. Aby je przenieść, użyj **⬇ Eksportuj** na jednym urządzeniu i **⬆ Importuj** na drugim (plik `finanse-kopia.json`).
 
 ## Uruchamianie
 
