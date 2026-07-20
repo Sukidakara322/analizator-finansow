@@ -77,7 +77,15 @@ function createWindow() {
   });
 
   mainWindow.setMenuBarVisibility(false);
-  mainWindow.loadFile('index.html');
+
+  // Wersja desktopowa ładuje tę samą aplikację co telefon (hostowaną na GitHub Pages),
+  // dzięki czemu dane synchronizują się przez chmurę i działa logowanie oraz tryb offline.
+  // Gdyby nie było internetu przy pierwszym starcie — awaryjnie ładujemy pliki lokalne.
+  const HOSTED_URL = 'https://sukidakara322.github.io/analizator-finansow/';
+  mainWindow.loadURL(HOSTED_URL);
+  mainWindow.webContents.on('did-fail-load', (_e, code, _desc, _url, isMainFrame) => {
+    if (isMainFrame && code !== -3) mainWindow.loadFile('index.html');
+  });
 }
 
 app.whenReady().then(() => {
