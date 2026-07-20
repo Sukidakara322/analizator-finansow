@@ -16,3 +16,6 @@ Desktop.ini
 # Foldery build (na przyszłość, gdyby pakować do .exe)
 dist/
 out/
+
+# Zrzuty ekranu z narzędzia podglądu (scripts/screenshot.js)
+shots/

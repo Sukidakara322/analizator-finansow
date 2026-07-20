@@ -33,8 +33,8 @@ function buildSVG({ fullBleed, contentScale = 1 }) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
     <defs>
       <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#4f8cff"/>
-        <stop offset="1" stop-color="#35d07f"/>
+        <stop offset="0" stop-color="#a855f7"/>
+        <stop offset="1" stop-color="#ec4899"/>
       </linearGradient>
     </defs>
     ${bg}

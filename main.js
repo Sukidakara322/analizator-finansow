@@ -67,7 +67,7 @@ function createWindow() {
     height: 860,
     minWidth: 900,
     minHeight: 640,
-    backgroundColor: '#0f1420',
+    backgroundColor: '#0b0913',
     title: 'Analizator Finansów',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

@@ -10,7 +10,7 @@ const MONTH_NAMES = [
 ];
 
 // Kolory kategorii (przypisywane cyklicznie wg indeksu)
-const PALETTE = ['#4f8cff', '#35d07f', '#ff6b6b', '#ffc15c', '#b98cff', '#4fd1c5', '#f78fb3', '#f6a14b', '#8ac6ff', '#a0e57f'];
+const PALETTE = ['#a855f7', '#ec4899', '#22d3ee', '#2fe6b0', '#f472b6', '#818cf8', '#c77dff', '#fb7185', '#38bdf8', '#facc15'];
 
 // ---------- Narzędzia ----------
 const $ = (sel) => document.querySelector(sel);
@@ -189,8 +189,8 @@ function renderDonut(m) {
 
   donut.innerHTML = `<svg viewBox="0 0 180 180" width="180" height="180">
     ${segments}
-    <text x="${cx}" y="${cy - 4}" text-anchor="middle" fill="#8a95ad" font-size="11">Razem</text>
-    <text x="${cx}" y="${cy + 14}" text-anchor="middle" fill="#e8ecf4" font-size="15" font-weight="700">${fmt(total)}</text>
+    <text x="${cx}" y="${cy - 4}" text-anchor="middle" fill="#9d94b8" font-size="11">Razem</text>
+    <text x="${cx}" y="${cy + 14}" text-anchor="middle" fill="#f2eefb" font-size="15" font-weight="700">${fmt(total)}</text>
   </svg>`;
 
   legend.innerHTML = breakdown.map((b, i) => {
@@ -206,7 +206,7 @@ function renderDonut(m) {
 function renderList(m) {
   const container = $('#expenseList');
   if (m.expenses.length === 0) {
-    container.innerHTML = '<div class="empty-hint">Brak wydatków. Dodaj pierwszy powyżej. 👆</div>';
+    container.innerHTML = '<div class="empty-hint">Brak wydatków. Dodaj pierwszy w formularzu powyżej.</div>';
     return;
   }
 
@@ -245,7 +245,7 @@ function itemRow(e) {
     </div>
     <div class="ei-right">
       <span class="ei-amount">${fmt(e.amount)}</span>
-      <button class="del-btn" data-id="${e.id}" title="Usuń">🗑</button>
+      <button class="del-btn" data-id="${e.id}" title="Usuń" aria-label="Usuń">&#10005;</button>
     </div>
   </div>`;
 }
@@ -291,7 +291,7 @@ function renderCatModalList() {
   const ul = $('#catList');
   ul.innerHTML = data.categories.map(c => `<li>
     <span>${escapeHtml(c)}</span>
-    <button class="del-btn" data-cat="${escapeHtml(c)}" title="Usuń">🗑</button>
+    <button class="del-btn" data-cat="${escapeHtml(c)}" title="Usuń" aria-label="Usuń">&#10005;</button>
   </li>`).join('');
   ul.querySelectorAll('.del-btn').forEach(btn => {
     btn.onclick = () => {
