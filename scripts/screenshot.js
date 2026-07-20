@@ -57,25 +57,18 @@ app.whenReady().then(() => {
 
     await run(START_APP);
     await wait(700);
-    await shot('app-top.png');                                 // główny widok – góra
+    await shot('view-miesiac.png');                            // widok: Miesiąc
 
-    await run(`document.querySelector('#expCategory .dd-trigger').click();`);
-    await wait(400);
-    await shot('dropdown.png');                                // dropdown kategorii otwarty
-    await run(`document.querySelector('#expCategory .dd-trigger').click();`);
+    const nav = (v) => run(`document.querySelector('.nav-btn[data-view=${v}]').click();`);
+    await nav('analiza'); await wait(500); await shot('view-analiza.png');
+    await nav('historia'); await wait(400); await shot('view-historia.png');
+    await nav('ustawienia'); await wait(400); await shot('view-ustawienia.png');
 
-    await run(`window.scrollTo(0, document.body.scrollHeight);`);
-    await wait(500);
-    await shot('app-bottom.png');                              // lista + wykres miesięczny + stopka
-
-    await run(`window.scrollTo(0,0); document.getElementById('manageCats').click();`);
-    await wait(400);
-    await shot('modal.png');                                   // okno kategorii
-
-    await run(`document.getElementById('catModal').hidden = true;`);
+    // Widok mobilny
+    await nav('miesiac');
     win.setSize(430, 900);
     await wait(500);
-    await shot('mobile.png');                                  // widok mobilny
+    await shot('mobile.png');
 
     app.quit();
   });

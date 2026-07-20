@@ -63,7 +63,7 @@
         </div>
       </div>
 
-      <div class="month-nav">
+      <div class="month-nav" id="monthNav">
         <button id="prevMonth" class="icon-btn" title="Poprzedni miesiąc">◀</button>
         <div class="month-label" id="monthLabel">—</div>
         <button id="nextMonth" class="icon-btn" title="Następny miesiąc">▶</button>
@@ -71,6 +71,8 @@
     </header>
 
     <main class="content">
+     <!-- ============ WIDOK: MIESIĄC ============ -->
+     <section class="view active" id="view-miesiac">
       <!-- Karty podsumowania -->
       <section class="cards">
         <div class="card">
@@ -120,9 +122,8 @@
         </div>
       </section>
 
-      <div class="grid-2">
-        <!-- Dodawanie wydatku -->
-        <section class="panel">
+      <!-- Dodawanie wydatku -->
+      <section class="panel">
           <h2>Dodaj wydatek</h2>
           <form id="expenseForm" class="expense-form">
             <div class="field">
@@ -154,8 +155,11 @@
             </div>
             <button type="submit" class="primary-btn">+ Dodaj wydatek</button>
           </form>
-        </section>
+      </section>
+     </section>
 
+     <!-- ============ WIDOK: ANALIZA ============ -->
+     <section class="view" id="view-analiza">
         <!-- Wykres kołowy kategorii -->
         <section class="panel">
           <h2>Wydatki wg kategorii</h2>
@@ -164,45 +168,79 @@
             <div id="donutLegend" class="donut-legend"></div>
           </div>
         </section>
-      </div>
 
-      <!-- Lista wydatków pogrupowana -->
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Lista wydatków</h2>
-          <div class="view-toggle">
-            <button class="toggle-btn active" data-view="grouped">Wg kategorii</button>
-            <button class="toggle-btn" data-view="flat">Chronologicznie</button>
+        <!-- Porównanie miesięcy -->
+        <section class="panel">
+          <h2>Porównanie miesięcy</h2>
+          <div id="monthlyChart" class="monthly-chart"></div>
+          <div class="chart-legend">
+            <div><span class="dot dot-salary"></span> Pensja</div>
+            <div><span class="dot dot-spent"></span> Wydatki</div>
+            <div><span class="dot dot-saved"></span> Oszczędności</div>
           </div>
-        </div>
-        <div id="expenseList" class="expense-list"></div>
-      </section>
+        </section>
+     </section>
 
-      <!-- Porównanie miesięcy -->
-      <section class="panel">
-        <h2>Porównanie miesięcy</h2>
-        <div id="monthlyChart" class="monthly-chart"></div>
-        <div class="chart-legend">
-          <div><span class="dot dot-salary"></span> Pensja</div>
-          <div><span class="dot dot-spent"></span> Wydatki</div>
-          <div><span class="dot dot-saved"></span> Oszczędności</div>
-        </div>
-      </section>
+     <!-- ============ WIDOK: HISTORIA ============ -->
+     <section class="view" id="view-historia">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Lista wydatków</h2>
+            <div class="view-toggle">
+              <button class="toggle-btn active" data-view="grouped">Wg kategorii</button>
+              <button class="toggle-btn" data-view="flat">Chronologicznie</button>
+            </div>
+          </div>
+          <div id="expenseList" class="expense-list"></div>
+        </section>
+     </section>
+
+     <!-- ============ WIDOK: USTAWIENIA ============ -->
+     <section class="view" id="view-ustawienia">
+        <section class="panel">
+          <h2>Konto</h2>
+          <p class="settings-line">Zalogowano · dane w chmurze:</p>
+          <code id="dataPath" class="settings-code">—</code>
+          <button id="signOutBtn" class="ghost-btn settings-btn" hidden>Wyloguj</button>
+        </section>
+
+        <section class="panel">
+          <h2>Kategorie</h2>
+          <p class="settings-line">Dodawaj i usuwaj własne kategorie wydatków. Zmiany zapisują się w chmurze.</p>
+          <button id="openCats" class="ghost-btn settings-btn">Zarządzaj kategoriami</button>
+        </section>
+
+        <section class="panel">
+          <h2>Dane</h2>
+          <p class="settings-line">Kopia zapasowa lub przeniesienie danych przez plik JSON.</p>
+          <div class="settings-actions">
+            <button id="exportBtn" class="ghost-btn">Eksportuj</button>
+            <button id="importBtn" class="ghost-btn">Importuj</button>
+            <button id="openFolder" class="ghost-btn" hidden>Otwórz folder</button>
+          </div>
+        </section>
+     </section>
     </main>
 
-    <!-- Stopka -->
-    <footer class="footbar">
-      <div class="path-info">
-        <span>Dane zapisywane w:</span>
-        <code id="dataPath">—</code>
-      </div>
-      <div class="foot-actions">
-        <button id="openFolder" class="ghost-btn">Otwórz folder</button>
-        <button id="exportBtn" class="ghost-btn">Eksportuj</button>
-        <button id="importBtn" class="ghost-btn">Importuj</button>
-        <button id="signOutBtn" class="ghost-btn" hidden>Wyloguj</button>
-      </div>
-    </footer>
+    <!-- Dolna nawigacja -->
+    <nav class="bottomnav" id="bottomNav">
+      <button class="nav-btn active" data-view="miesiac" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+        <span>Miesiąc</span>
+      </button>
+      <button class="nav-btn" data-view="analiza" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="14"/></svg>
+        <span>Analiza</span>
+      </button>
+      <button class="nav-btn" data-view="historia" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>
+        <span>Historia</span>
+      </button>
+      <button class="nav-btn" data-view="ustawienia" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        <span>Ustawienia</span>
+      </button>
+    </nav>
   </div>
 
   <!-- Okno zarządzania kategoriami -->

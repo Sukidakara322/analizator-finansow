@@ -448,6 +448,15 @@ window.App = {
   }
 };
 
+// Przełączanie widoków (zakładek) z dolnej nawigacji.
+function showView(name) {
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + name));
+  document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  const mn = $('#monthNav');
+  if (mn) mn.hidden = (name === 'ustawienia'); // miesiąc nieistotny w ustawieniach
+  window.scrollTo(0, 0);
+}
+
 function bindEvents() {
   $('#prevMonth').onclick = () => { currentKey = prevKey(currentKey); syncFormDate(); render(); };
   $('#nextMonth').onclick = () => { currentKey = nextKey(currentKey); syncFormDate(); render(); };
@@ -478,8 +487,15 @@ function bindEvents() {
     };
   });
 
-  // Modal kategorii
-  $('#manageCats').onclick = () => { renderCatModalList(); $('#catModal').hidden = false; };
+  // Nawigacja między widokami
+  document.querySelectorAll('.nav-btn').forEach((btn) => {
+    btn.onclick = () => showView(btn.dataset.view);
+  });
+
+  // Modal kategorii (z formularza ⚙ oraz z Ustawień)
+  const openCatsModal = () => { renderCatModalList(); $('#catModal').hidden = false; };
+  $('#manageCats').onclick = openCatsModal;
+  $('#openCats').onclick = openCatsModal;
   $('#closeCatModal').onclick = () => { $('#catModal').hidden = true; };
   $('#catModal').addEventListener('click', (e) => { if (e.target.id === 'catModal') $('#catModal').hidden = true; });
   $('#addCatBtn').onclick = addCategory;
