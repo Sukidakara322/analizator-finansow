@@ -59,6 +59,11 @@ app.whenReady().then(() => {
     await wait(700);
     await shot('app-top.png');                                 // główny widok – góra
 
+    await run(`document.querySelector('#expCategory .dd-trigger').click();`);
+    await wait(400);
+    await shot('dropdown.png');                                // dropdown kategorii otwarty
+    await run(`document.querySelector('#expCategory .dd-trigger').click();`);
+
     await run(`window.scrollTo(0, document.body.scrollHeight);`);
     await wait(500);
     await shot('app-bottom.png');                              // lista + wykres miesięczny + stopka

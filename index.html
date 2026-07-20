@@ -128,7 +128,13 @@
             <div class="field">
               <label>Kategoria</label>
               <div class="cat-row">
-                <select id="expCategory"></select>
+                <div class="dropdown" id="expCategory">
+                  <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="dd-label">—</span>
+                    <span class="dd-arrow"></span>
+                  </button>
+                  <div class="dd-panel" role="listbox" hidden></div>
+                </div>
                 <button type="button" id="manageCats" class="ghost-btn" title="Zarządzaj kategoriami">⚙</button>
               </div>
             </div>

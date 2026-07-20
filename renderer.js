@@ -276,12 +276,78 @@ function renderMonthly() {
   }).join('');
 }
 
-// ---------- Kategorie (select + modal) ----------
+// ---------- Własny dropdown (wielokrotnego użytku) ----------
+// Zastępuje natywny <select>, żeby całą listę (także rozwiniętą) dało się ostylować.
+function createDropdown(root) {
+  const trigger = root.querySelector('.dd-trigger');
+  const labelEl = root.querySelector('.dd-label');
+  const panel = root.querySelector('.dd-panel');
+  let options = [];
+  let value = null;
+  let activeIndex = -1;
+
+  function renderPanel() {
+    panel.innerHTML = options.map((opt, i) =>
+      `<div class="dd-option${opt === value ? ' selected' : ''}" role="option" data-i="${i}">${escapeHtml(opt)}</div>`
+    ).join('');
+  }
+  function highlight() {
+    [...panel.children].forEach((c, i) => c.classList.toggle('active', i === activeIndex));
+    const el = panel.children[activeIndex];
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+  function open() {
+    if (!options.length) return;
+    renderPanel();
+    panel.hidden = false;
+    root.classList.add('open');
+    trigger.setAttribute('aria-expanded', 'true');
+    activeIndex = Math.max(0, options.indexOf(value));
+    highlight();
+    document.addEventListener('click', onDocClick, true);
+    document.addEventListener('keydown', onKey);
+  }
+  function close() {
+    panel.hidden = true;
+    root.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', onDocClick, true);
+    document.removeEventListener('keydown', onKey);
+  }
+  function choose(v) { value = v; labelEl.textContent = v != null ? v : '—'; close(); }
+  function onDocClick(e) { if (!root.contains(e.target)) close(); }
+  function onKey(e) {
+    if (e.key === 'Escape') { close(); trigger.focus(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(options.length - 1, activeIndex + 1); highlight(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); highlight(); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (options[activeIndex] != null) choose(options[activeIndex]); }
+  }
+  trigger.addEventListener('click', () => { root.classList.contains('open') ? close() : open(); });
+  panel.addEventListener('click', (e) => {
+    const opt = e.target.closest('.dd-option');
+    if (opt) choose(options[Number(opt.dataset.i)]);
+  });
+
+  return {
+    setOptions(opts, selected) {
+      options = opts.slice();
+      if (selected != null && options.includes(selected)) value = selected;
+      else if (!options.includes(value)) value = options.length ? options[0] : null;
+      labelEl.textContent = value != null ? value : '—';
+      if (!panel.hidden) { renderPanel(); highlight(); }
+    },
+    get value() { return value; },
+    set value(v) { if (options.includes(v)) { value = v; labelEl.textContent = v; } }
+  };
+}
+
+let categoryDropdown = null;
+
+// ---------- Kategorie (dropdown + modal) ----------
 function renderCategorySelect() {
-  const sel = $('#expCategory');
-  const prev = sel.value;
-  sel.innerHTML = data.categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-  if (data.categories.includes(prev)) sel.value = prev;
+  if (!categoryDropdown) categoryDropdown = createDropdown($('#expCategory'));
+  const prev = categoryDropdown.value;
+  categoryDropdown.setOptions(data.categories, data.categories.includes(prev) ? prev : data.categories[0]);
 }
 
 function renderCatModalList() {
@@ -307,7 +373,7 @@ function renderCatModalList() {
 // ---------- Operacje ----------
 function addExpense(ev) {
   ev.preventDefault();
-  const category = $('#expCategory').value;
+  const category = categoryDropdown ? categoryDropdown.value : null;
   const name = $('#expName').value.trim();
   const amount = parseFloat($('#expAmount').value);
   const date = $('#expDate').value || currentKey + '-01';
@@ -452,7 +518,7 @@ function addCategory() {
   input.value = '';
   renderCategorySelect();
   renderCatModalList();
-  $('#expCategory').value = name;
+  if (categoryDropdown) categoryDropdown.value = name;
   toast('Dodano kategorię');
 }
 
