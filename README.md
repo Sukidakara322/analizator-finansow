@@ -48,7 +48,8 @@ Przyciski w stopce:
 ## Funkcje
 
 - **Nawigacja po miesiącach** (◀ ▶) – każdy miesiąc to osobny zestaw danych.
-- **Stan konta na start** i **otrzymana pensja** – edytowalne pola; saldo z poprzedniego miesiąca można przenieść jednym kliknięciem.
+- **Początkowy stan konta** – podawany **raz, przy zakładaniu konta** (osobny krok po e-mailu i haśle). Potem saldo płynie automatycznie: „Stan konta na start" każdego miesiąca to kwota początkowa powiększona o (pensja − wydatki) wszystkich wcześniejszych miesięcy.
+- **Otrzymana pensja** – jedyne edytowalne pole kwotowe w widoku miesiąca.
 - **Dodawanie wydatków** – kategoria, nazwa/opis, kwota, data.
 - **Kategorie** – własne, zarządzane przez ikonę ⚙ (np. „Zakupy w sklepie”).
 - **Wpływ na pensję** – pasek pokazujący, ile procent pensji wydano, oraz stopę oszczędności.

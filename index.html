@@ -24,14 +24,31 @@
     <div class="auth-card">
       <div class="auth-logo"></div>
       <h2>Analizator Finansów</h2>
-      <p class="auth-sub">Zaloguj się, aby Twoje dane synchronizowały się między telefonem a komputerem.</p>
-      <input type="email" id="authEmail" placeholder="E-mail" autocomplete="username" />
-      <input type="password" id="authPass" placeholder="Hasło (min. 6 znaków)" autocomplete="current-password" />
-      <div class="auth-error" id="authError"></div>
-      <button id="authSignIn" class="primary-btn">Zaloguj się</button>
-      <button id="authSignUp" class="ghost-btn auth-signup">Utwórz nowe konto</button>
-      <div class="auth-busy" id="authBusy" hidden>Łączenie…</div>
-      <p class="auth-hint">Pierwszy raz? Wpisz e-mail i hasło, a potem kliknij <b>Utwórz nowe konto</b>.</p>
+
+      <!-- Krok 1: e-mail i hasło -->
+      <div id="authStep1" class="auth-step">
+        <p class="auth-sub">Zaloguj się, aby Twoje dane synchronizowały się między telefonem a komputerem.</p>
+        <input type="email" id="authEmail" placeholder="E-mail" autocomplete="username" />
+        <input type="password" id="authPass" placeholder="Hasło (min. 6 znaków)" autocomplete="current-password" />
+        <div class="auth-error" id="authError"></div>
+        <button id="authSignIn" class="primary-btn">Zaloguj się</button>
+        <button id="authSignUp" class="ghost-btn auth-signup">Utwórz nowe konto</button>
+        <div class="auth-busy" id="authBusy" hidden>Łączenie…</div>
+        <p class="auth-hint">Pierwszy raz? Wpisz e-mail i hasło, a potem kliknij <b>Utwórz nowe konto</b>.</p>
+      </div>
+
+      <!-- Krok 2: początkowy stan konta (tylko przy zakładaniu konta) -->
+      <div id="authStep2" class="auth-step" hidden>
+        <p class="auth-sub">Ostatni krok. Podaj obecny stan swojego konta — od tej kwoty zaczniemy liczyć. Zapytamy o to <b>tylko raz</b>.</p>
+        <div class="auth-money">
+          <input type="number" id="authInitBalance" step="0.01" placeholder="0,00" inputmode="decimal" />
+          <span class="unit">zł</span>
+        </div>
+        <div class="auth-error" id="authError2"></div>
+        <button id="authFinish" class="primary-btn">Utwórz konto</button>
+        <button id="authBack" class="ghost-btn auth-signup">Wstecz</button>
+        <div class="auth-busy" id="authBusy2" hidden>Tworzenie konta…</div>
+      </div>
     </div>
   </div>
 
@@ -58,11 +75,8 @@
       <section class="cards">
         <div class="card">
           <label class="card-title">Stan konta na start</label>
-          <div class="card-input">
-            <input type="number" id="startingBalance" step="0.01" placeholder="0,00" />
-            <span class="unit">zł</span>
-          </div>
-          <p class="card-hint" id="carryHint"></p>
+          <div class="card-value" id="startBalance">0,00 zł</div>
+          <p class="card-hint">Saldo przeniesione z poprzednich miesięcy</p>
         </div>
 
         <div class="card">

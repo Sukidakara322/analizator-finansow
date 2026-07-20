@@ -17,12 +17,19 @@ import {
 const LS_KEY = 'analizator-finanse-v1'; // stary klucz localStorage — do migracji danych z telefonu
 const DEFAULT_CATEGORIES = ['Jedzenie', 'Transport', 'Rachunki', 'Rozrywka', 'Zdrowie', 'Ubrania', 'Inne'];
 
-function defaultData() { return { version: 1, categories: [...DEFAULT_CATEGORIES], months: {} }; }
+function defaultData() { return { version: 1, initialBalance: 0, categories: [...DEFAULT_CATEGORIES], months: {} }; }
 function normalize(p) {
   if (!p || typeof p !== 'object') return defaultData();
   if (!Array.isArray(p.categories) || p.categories.length === 0) p.categories = [...DEFAULT_CATEGORIES];
   if (!p.months || typeof p.months !== 'object') p.months = {};
   if (!p.version) p.version = 1;
+  // Migracja starszych danych: jeśli brak globalnego stanu początkowego,
+  // weź saldo startowe najwcześniejszego miesiąca (dawne pole startingBalance).
+  if (typeof p.initialBalance !== 'number') {
+    const mk = Object.keys(p.months).sort();
+    p.initialBalance = (mk.length && typeof p.months[mk[0]].startingBalance === 'number')
+      ? p.months[mk[0]].startingBalance : 0;
+  }
   return p;
 }
 
@@ -49,12 +56,31 @@ const elError = document.getElementById('authError');
 const btnSignIn = document.getElementById('authSignIn');
 const btnSignUp = document.getElementById('authSignUp');
 const elBusy = document.getElementById('authBusy');
+// Krok 2 (rejestracja – początkowy stan konta)
+const step1 = document.getElementById('authStep1');
+const step2 = document.getElementById('authStep2');
+const elInitBalance = document.getElementById('authInitBalance');
+const elError2 = document.getElementById('authError2');
+const elBusy2 = document.getElementById('authBusy2');
+const btnFinish = document.getElementById('authFinish');
+const btnBack = document.getElementById('authBack');
 
 function setError(msg) { if (elError) elError.textContent = msg || ''; }
+function setError2(msg) { if (elError2) elError2.textContent = msg || ''; }
 function setBusy(on) {
   if (btnSignIn) btnSignIn.disabled = on;
   if (btnSignUp) btnSignUp.disabled = on;
   if (elBusy) elBusy.hidden = !on;
+}
+function setBusy2(on) {
+  if (btnFinish) btnFinish.disabled = on;
+  if (btnBack) btnBack.disabled = on;
+  if (elBusy2) elBusy2.hidden = !on;
+}
+function goStep(n) {
+  if (step1) step1.hidden = n !== 1;
+  if (step2) step2.hidden = n !== 2;
+  setError(''); setError2('');
 }
 function showGate() { if (gate) gate.hidden = false; if (appRoot) appRoot.hidden = true; }
 function showApp() { if (gate) gate.hidden = true; if (appRoot) appRoot.hidden = false; }
@@ -79,6 +105,7 @@ function plError(code) {
 let userDocRef = null;
 let currentData = defaultData();
 let unsub = null;
+let pendingInitialBalance = null; // stan konta podany w kroku 2 rejestracji
 
 // --- window.store: ten sam interfejs, którego używa renderer.js ---
 window.store = {
@@ -146,7 +173,7 @@ window.store = {
 onAuthStateChanged(auth, async (user) => {
   if (unsub) { unsub(); unsub = null; }
 
-  if (!user) { showGate(); setBusy(false); return; }
+  if (!user) { showGate(); goStep(1); setBusy(false); setBusy2(false); return; }
 
   // Zalogowany: wczytaj dane, uruchom aplikację, włącz synchronizację na żywo.
   userDocRef = doc(db, 'users', user.uid);
@@ -156,19 +183,18 @@ onAuthStateChanged(auth, async (user) => {
     if (snap.exists() && snap.data().json) {
       initial = normalize(JSON.parse(snap.data().json));
     } else {
-      // Pierwsze logowanie: przenieś ewentualne dane z pamięci telefonu do chmury.
+      // Pierwsze logowanie / nowe konto: dane z pamięci telefonu albo świeży zestaw.
       const ls = localStorage.getItem(LS_KEY);
-      if (ls) {
-        initial = normalize(JSON.parse(ls));
-        await setDoc(userDocRef, { json: JSON.stringify(initial), updatedAt: Date.now() });
-      } else {
-        initial = defaultData();
-      }
+      initial = ls ? normalize(JSON.parse(ls)) : defaultData();
+      // Stan początkowy konta podany w kroku 2 rejestracji.
+      if (typeof pendingInitialBalance === 'number') initial.initialBalance = pendingInitialBalance;
+      await setDoc(userDocRef, { json: JSON.stringify(initial), updatedAt: Date.now() });
     }
   } catch (e) {
     console.error('Błąd wczytywania danych:', e);
     initial = defaultData();
   }
+  pendingInitialBalance = null;
 
   currentData = initial;
   showApp();
@@ -187,26 +213,65 @@ onAuthStateChanged(auth, async (user) => {
   });
 });
 
-// --- Obsługa przycisków logowania ---
-async function doAuth(kind) {
-  const email = (elEmail?.value || '').trim();
-  const pass = elPass?.value || '';
-  if (!email) { setError('Podaj adres e-mail.'); return; }
-  if (pass.length < 6) { setError('Hasło musi mieć co najmniej 6 znaków.'); return; }
+// --- Obsługa logowania i rejestracji ---
+function readCreds() {
+  return { email: (elEmail?.value || '').trim(), pass: elPass?.value || '' };
+}
+function validCreds() {
+  const { email, pass } = readCreds();
+  if (!email) { setError('Podaj adres e-mail.'); return false; }
+  if (pass.length < 6) { setError('Hasło musi mieć co najmniej 6 znaków.'); return false; }
+  return true;
+}
+
+// Logowanie do istniejącego konta.
+async function signIn() {
+  if (!validCreds()) return;
+  const { email, pass } = readCreds();
   setError(''); setBusy(true);
   try {
     await setPersistence(auth, browserLocalPersistence);
-    if (kind === 'in') await signInWithEmailAndPassword(auth, email, pass);
-    else await createUserWithEmailAndPassword(auth, email, pass);
+    await signInWithEmailAndPassword(auth, email, pass);
   } catch (e) {
     setBusy(false);
     setError(plError(e.code || e.message));
   }
 }
 
-if (btnSignIn) btnSignIn.onclick = () => doAuth('in');
-if (btnSignUp) btnSignUp.onclick = () => doAuth('up');
-if (elPass) elPass.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAuth('in'); });
+// Rejestracja – krok 1: sprawdź dane i przejdź do pytania o stan konta.
+function startSignUp() {
+  if (!validCreds()) return;
+  goStep(2);
+  if (elInitBalance) { elInitBalance.value = ''; elInitBalance.focus(); }
+}
+
+// Rejestracja – krok 2: utwórz konto z podanym stanem początkowym.
+async function finishSignUp() {
+  const { email, pass } = readCreds();
+  pendingInitialBalance = parseFloat((elInitBalance?.value || '').replace(',', '.')) || 0;
+  setError2(''); setBusy2(true);
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+    await createUserWithEmailAndPassword(auth, email, pass);
+    // resztę (utworzenie dokumentu z pendingInitialBalance) dokończy onAuthStateChanged
+  } catch (e) {
+    setBusy2(false);
+    pendingInitialBalance = null;
+    if ((e.code || '') === 'auth/email-already-in-use') {
+      goStep(1);
+      setError('Konto z tym adresem już istnieje — zaloguj się.');
+    } else {
+      setError2(plError(e.code || e.message));
+    }
+  }
+}
+
+if (btnSignIn) btnSignIn.onclick = signIn;
+if (btnSignUp) btnSignUp.onclick = startSignUp;
+if (btnFinish) btnFinish.onclick = finishSignUp;
+if (btnBack) btnBack.onclick = () => goStep(1);
+if (elPass) elPass.addEventListener('keydown', (e) => { if (e.key === 'Enter') signIn(); });
+if (elInitBalance) elInitBalance.addEventListener('keydown', (e) => { if (e.key === 'Enter') finishSignUp(); });
 
 // Wylogowanie (przycisk w stopce aplikacji).
 const btnSignOut = document.getElementById('signOutBtn');

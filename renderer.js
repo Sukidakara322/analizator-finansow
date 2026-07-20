@@ -51,17 +51,30 @@ function toast(msg) {
 // ---------- Dostęp do danych miesiąca ----------
 function getMonth(key) {
   if (!data.months[key]) {
-    data.months[key] = { startingBalance: 0, salary: 0, expenses: [] };
+    data.months[key] = { salary: 0, expenses: [] };
   }
   return data.months[key];
 }
 
+// Saldo na początek danego miesiąca = kwota początkowa (ustawiona raz przy rejestracji)
+// powiększona o wynik (pensja − wydatki) wszystkich wcześniejszych miesięcy.
+function runningStart(key) {
+  let bal = Number(data.initialBalance) || 0;
+  const keys = Object.keys(data.months).filter((k) => k < key).sort();
+  for (const k of keys) {
+    const m = data.months[k];
+    const spent = (m.expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    bal += (Number(m.salary) || 0) - spent;
+  }
+  return bal;
+}
+
 function monthTotals(key) {
   const m = data.months[key];
-  if (!m) return { spent: 0, salary: 0, start: 0, saved: 0, balance: 0 };
+  const start = runningStart(key);
+  if (!m) return { spent: 0, salary: 0, start, saved: 0, balance: start };
   const spent = m.expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const salary = Number(m.salary) || 0;
-  const start = Number(m.startingBalance) || 0;
   return { spent, salary, start, saved: salary - spent, balance: start + salary - spent };
 }
 
@@ -82,38 +95,22 @@ function render() {
   // Etykieta miesiąca
   $('#monthLabel').textContent = labelFromKey(currentKey);
 
-  // Pola wejściowe (nie nadpisuj podczas edycji tego samego pola)
-  const sb = $('#startingBalance');
+  // Pensja – jedyne edytowalne pole (nie nadpisuj podczas edycji)
   const sal = $('#salary');
-  if (document.activeElement !== sb) sb.value = m.startingBalance || '';
   if (document.activeElement !== sal) sal.value = m.salary || '';
 
-  // Podpowiedź o przeniesieniu salda z poprzedniego miesiąca
-  const pk = prevKey(currentKey);
-  const carryHint = $('#carryHint');
-  if (data.months[pk]) {
-    const prevBal = monthTotals(pk).balance;
-    carryHint.innerHTML = `Saldo z poprzedniego mies.: <b>${fmt(prevBal)}</b> · <a href="#" id="applyCarry">przenieś</a>`;
-    const link = $('#applyCarry');
-    if (link) link.onclick = (e) => {
-      e.preventDefault();
-      m.startingBalance = Number(prevBal.toFixed(2));
-      saveData(); render();
-      toast('Przeniesiono saldo z poprzedniego miesiąca');
-    };
-  } else {
-    carryHint.textContent = 'Wpisz stan konta na początek miesiąca';
-  }
+  // Stan konta na start = saldo przeniesione z poprzednich miesięcy (liczone automatycznie)
+  $('#startBalance').textContent = fmt(t.start);
 
   // Karty
   $('#totalExpenses').textContent = fmt(t.spent);
   $('#expenseCount').textContent = `${m.expenses.length} ${plural(m.expenses.length, 'pozycja', 'pozycje', 'pozycji')}`;
   $('#currentBalance').textContent = fmt(t.balance);
 
-  const delta = t.balance - t.start;
+  const delta = t.balance - t.start; // = pensja − wydatki w tym miesiącu
   const deltaEl = $('#balanceDelta');
   const sign = delta >= 0 ? '+' : '';
-  deltaEl.textContent = `Zmiana od startu: ${sign}${fmt(delta)}`;
+  deltaEl.textContent = `Zmiana w tym miesiącu: ${sign}${fmt(delta)}`;
   deltaEl.style.color = delta >= 0 ? 'var(--green)' : 'var(--red)';
 
   renderImpact(t);
@@ -353,10 +350,11 @@ let eventsBound = false;
 
 window.App = {
   start(initialData) {
-    data = initialData || { version: 1, categories: [], months: {} };
+    data = initialData || { version: 1, initialBalance: 0, categories: [], months: {} };
     if (!data.categories || data.categories.length === 0) {
       data.categories = ['Jedzenie', 'Transport', 'Rachunki', 'Rozrywka', 'Zdrowie', 'Ubrania', 'Inne'];
     }
+    if (typeof data.initialBalance !== 'number') data.initialBalance = 0;
 
     currentKey = keyFromDate(new Date());
 
@@ -388,27 +386,17 @@ function bindEvents() {
   $('#prevMonth').onclick = () => { currentKey = prevKey(currentKey); syncFormDate(); render(); };
   $('#nextMonth').onclick = () => { currentKey = nextKey(currentKey); syncFormDate(); render(); };
 
-  $('#startingBalance').addEventListener('input', (e) => {
-    getMonth(currentKey).startingBalance = parseFloat(e.target.value) || 0;
-    saveData();
-    // Odśwież tylko liczone wartości (bez nadpisania pola)
-    const t = monthTotals(currentKey);
-    $('#currentBalance').textContent = fmt(t.balance);
-    const delta = t.balance - t.start;
-    $('#balanceDelta').textContent = `Zmiana od startu: ${delta >= 0 ? '+' : ''}${fmt(delta)}`;
-    $('#balanceDelta').style.color = delta >= 0 ? 'var(--green)' : 'var(--red)';
-    renderMonthly();
-  });
-
   $('#salary').addEventListener('input', (e) => {
     getMonth(currentKey).salary = parseFloat(e.target.value) || 0;
     saveData();
+    // Pełne odświeżenie: pensja wpływa też na saldo start kolejnych miesięcy
     const t = monthTotals(currentKey);
+    $('#startBalance').textContent = fmt(t.start);
     $('#currentBalance').textContent = fmt(t.balance);
     renderImpact(t);
     renderMonthly();
     const delta = t.balance - t.start;
-    $('#balanceDelta').textContent = `Zmiana od startu: ${delta >= 0 ? '+' : ''}${fmt(delta)}`;
+    $('#balanceDelta').textContent = `Zmiana w tym miesiącu: ${delta >= 0 ? '+' : ''}${fmt(delta)}`;
     $('#balanceDelta').style.color = delta >= 0 ? 'var(--green)' : 'var(--red)';
   });
 

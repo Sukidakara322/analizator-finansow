@@ -24,6 +24,9 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Atrybut hidden musi chować element nawet gdy klasa ustawia display:flex/grid */
+[hidden] { display: none !important; }
+
 body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   background:
@@ -305,6 +308,10 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cur
 }
 .auth-sub { color: var(--muted); font-size: 13px; margin-bottom: 6px; line-height: 1.5; }
 .auth-card input { text-align: left; }
+.auth-step { display: flex; flex-direction: column; gap: 12px; }
+.auth-money { display: flex; align-items: center; gap: 10px; }
+.auth-money input { font-size: 22px; font-weight: 700; }
+.auth-money .unit { color: var(--muted); font-size: 16px; font-weight: 700; }
 .auth-card .primary-btn { margin-top: 4px; }
 .auth-signup { width: 100%; }
 .auth-error { color: var(--red); font-size: 13px; min-height: 18px; }
