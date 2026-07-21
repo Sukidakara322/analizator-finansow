@@ -16,7 +16,7 @@ Konfiguracja Firebase jest w [firebase-config.js](firebase-config.js). Zawarty t
 
 Aplikacja jest podzielona na cztery zakładki (dolny pasek):
 - **Miesiąc** – podsumowanie miesiąca i szybkie dodawanie wydatku,
-- **Analiza** – podsumowanie miesiąca (KPI + wnioski), kategorie z trendem, trend salda i oszczędności, kategorie przez miesiące, porównanie miesięcy,
+- **Analiza** – podsumowanie miesiąca (KPI + wnioski), kategorie z trendem, wydatki dzień po dniu (zakres 7/14/21/cały + podsumowanie dnia), kategorie przez miesiące, porównanie miesięcy,
 - **Historia** – lista wydatków (wg kategorii lub chronologicznie),
 - **Ustawienia** – konto/wyloguj, zarządzanie kategoriami, eksport/import.
 

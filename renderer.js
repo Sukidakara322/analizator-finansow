@@ -3,6 +3,8 @@
 let data = { version: 1, categories: [], months: {} };
 let currentKey = null;      // klucz aktualnego miesiąca "RRRR-MM"
 let listView = 'grouped';   // widok listy: 'grouped' | 'flat'
+let dailyRange = null;      // zakres dni w rozbiciu dziennym: 7 | 14 | 21 | 'all' | null(auto)
+let dailyDay = null;        // wybrany dzień (numer) do podsumowania
 
 const MONTH_NAMES = [
   'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
@@ -299,8 +301,7 @@ function renderAnaliza() {
   renderKPI();
   renderInsights();
   renderCatBars();
-  renderBalanceTrend();
-  renderSavingsBars();
+  renderDaily();
   renderCatTrend();
 }
 
@@ -442,29 +443,98 @@ function lineChartHTML(labels, seriesList, height) {
   return svg + labs;
 }
 
-// ---------- Blok 4: Trend salda + oszczędności ----------
-function renderBalanceTrend() {
-  const keys = monthsRange(currentKey, 6);
-  const labels = keys.map(shortMonth);
-  const values = keys.map(k => monthTotals(k).balance);
-  $('#balanceTrend').innerHTML = lineChartHTML(labels, [{ color: '#a855f7', values }], 170);
+// ---------- Blok 4: Wydatki dzień po dniu ----------
+// Zbiera wydatki miesiąca pogrupowane po dniu: { dzień: {total, byCat, items} }.
+function monthExpensesByDay(key) {
+  const m = data.months[key];
+  const map = {};
+  if (m) for (const e of (m.expenses || [])) {
+    const day = e.date ? Number(e.date.split('-')[2]) : 1;
+    if (!day) continue;
+    if (!map[day]) map[day] = { total: 0, byCat: {}, items: [] };
+    const v = Number(e.amount) || 0;
+    map[day].total += v;
+    map[day].byCat[e.category] = (map[day].byCat[e.category] || 0) + v;
+    map[day].items.push(e);
+  }
+  return map;
 }
-function renderSavingsBars() {
-  const chart = $('#savingsBars');
-  const keys = monthsRange(currentKey, 6);
-  const rows = keys.map(k => ({ k, saved: monthTotals(k).saved }));
-  const max = Math.max(1, ...rows.map(r => Math.abs(r.saved)));
-  const H = 120;
-  chart.innerHTML = rows.map(r => {
-    const h = Math.round((Math.abs(r.saved) / max) * H);
-    const color = r.saved >= 0 ? 'var(--green)' : 'var(--red)';
-    return `<div class="mc-col ${r.k === currentKey ? 'current' : ''}">
-      <div class="mc-bars" style="height:${H}px">
-        <div class="mc-bar" style="height:${h}px;background:${color}" title="${fmt(r.saved)}"></div>
-      </div>
-      <div class="mc-label">${shortMonth(r.k)}</div>
-    </div>`;
+// Domyślny zakres: bieżący miesiąc rośnie z datą (7→14→21→cały), przeszłe miesiące = cały.
+function autoDailyRange(isCur, today, dim) {
+  if (!isCur) return dim;
+  const d = today.getDate();
+  return d <= 7 ? 7 : d <= 14 ? 14 : d <= 21 ? 21 : dim;
+}
+function defaultDailyDay(byDay, range, isCur, today) {
+  if (isCur && today.getDate() <= range && byDay[today.getDate()]) return today.getDate();
+  let last = null;
+  for (let d = 1; d <= range; d++) if (byDay[d]) last = d;
+  return last;
+}
+function renderDailyChips(range, dim) {
+  const chips = [{ v: 7, l: '7 dni' }, { v: 14, l: '14 dni' }, { v: 21, l: '21 dni' }, { v: 'all', l: 'Cały miesiąc' }];
+  $('#dailyChips').innerHTML = chips.map(c => {
+    const active = c.v === 'all' ? range >= dim : range === c.v;
+    return `<button type="button" class="chip${active ? ' active' : ''}" data-range="${c.v}">${c.l}</button>`;
   }).join('');
+}
+function renderDaily() {
+  const key = currentKey;
+  const dim = daysInMonth(key);
+  const byDay = monthExpensesByDay(key);
+  const today = new Date();
+  const isCur = key === keyFromDate(today);
+
+  let range = dailyRange === 'all' ? dim : (dailyRange == null ? autoDailyRange(isCur, today, dim) : dailyRange);
+  range = Math.min(Math.max(1, range), dim);
+  renderDailyChips(range, dim);
+
+  // kategorie obecne w zakresie (kolejność wg sumy = kolory)
+  const totals = {};
+  for (let d = 1; d <= range; d++) { const e = byDay[d]; if (e) for (const c in e.byCat) totals[c] = (totals[c] || 0) + e.byCat[c]; }
+  const cats = Object.keys(totals).filter(c => totals[c] > 0).sort((a, b) => totals[b] - totals[a]);
+  const colorOf = {}; cats.forEach((c, i) => { colorOf[c] = colorFor(i); });
+
+  let maxDay = 1;
+  for (let d = 1; d <= range; d++) { const e = byDay[d]; if (e) maxDay = Math.max(maxDay, e.total); }
+
+  // wybrany dzień
+  let sel = dailyDay;
+  if (sel == null || sel > range || !byDay[sel]) sel = defaultDailyDay(byDay, range, isCur, today);
+
+  const H = 160;
+  const chart = $('#dailyChart');
+  if (!cats.length) {
+    chart.innerHTML = '<div class="empty-hint">Brak wydatków w tym miesiącu.</div>';
+    $('#dailyLegend').innerHTML = '';
+    $('#dailyDetail').innerHTML = '';
+    return;
+  }
+  let cols = '';
+  for (let d = 1; d <= range; d++) {
+    const e = byDay[d];
+    let segs = '';
+    if (e) for (const c of cats) { const v = e.byCat[c]; if (v > 0) segs += `<div class="day-seg" style="height:${Math.max(2, Math.round(v / maxDay * H))}px;background:${colorOf[c]}"></div>`; }
+    cols += `<div class="day-col${d === sel ? ' selected' : ''}" data-day="${d}" title="Dzień ${d}: ${fmt(e ? e.total : 0)}">
+      <div class="day-stack" style="height:${H}px">${segs}</div>
+      <div class="day-num">${d}</div>
+    </div>`;
+  }
+  chart.innerHTML = cols;
+  $('#dailyLegend').innerHTML = cats.map(c => `<div><span class="dot" style="background:${colorOf[c]}"></span> ${escapeHtml(c)}</div>`).join('');
+  renderDayDetail(byDay, sel, key);
+}
+function renderDayDetail(byDay, day, key) {
+  const el = $('#dailyDetail');
+  if (day == null || !byDay[day]) {
+    el.innerHTML = '<div class="day-detail-empty">Kliknij słupek dnia, aby zobaczyć podsumowanie.</div>';
+    return;
+  }
+  const e = byDay[day];
+  const [y, mo] = key.split('-');
+  const cats = Object.entries(e.byCat).sort((a, b) => b[1] - a[1]);
+  el.innerHTML = `<div class="dd-head"><span>Podsumowanie · ${String(day).padStart(2, '0')}.${mo}.${y}</span><b>${fmt(e.total)}</b></div>
+    <div class="dd-cats">${cats.map(([c, v]) => `<div class="dd-cat"><span>${escapeHtml(c)}</span><span>${fmt(v)}</span></div>`).join('')}</div>`;
 }
 
 // ---------- Blok 5: Kategorie przez miesiące (osobne serie) ----------
@@ -671,8 +741,23 @@ function showView(name) {
 }
 
 function bindEvents() {
-  $('#prevMonth').onclick = () => { currentKey = prevKey(currentKey); syncFormDate(); render(); };
-  $('#nextMonth').onclick = () => { currentKey = nextKey(currentKey); syncFormDate(); render(); };
+  $('#prevMonth').onclick = () => { currentKey = prevKey(currentKey); dailyRange = null; dailyDay = null; syncFormDate(); render(); };
+  $('#nextMonth').onclick = () => { currentKey = nextKey(currentKey); dailyRange = null; dailyDay = null; syncFormDate(); render(); };
+
+  // Rozbicie dzienne: wybór zakresu i klik na dzień
+  $('#dailyChips').addEventListener('click', (e) => {
+    const c = e.target.closest('.chip');
+    if (!c) return;
+    dailyRange = c.dataset.range === 'all' ? 'all' : Number(c.dataset.range);
+    dailyDay = null;
+    renderDaily();
+  });
+  $('#dailyChart').addEventListener('click', (e) => {
+    const col = e.target.closest('.day-col');
+    if (!col) return;
+    dailyDay = Number(col.dataset.day);
+    renderDaily();
+  });
 
   $('#salary').addEventListener('input', (e) => {
     getMonth(currentKey).salary = parseFloat(e.target.value) || 0;

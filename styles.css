@@ -328,6 +328,40 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cur
 .lc-labels span { flex: 1; text-align: center; font-size: 11px; color: var(--muted); text-transform: capitalize; }
 .monthly-chart.mini { height: 150px; }
 
+/* ---------- Analiza: wydatki dzień po dniu ---------- */
+.range-chips { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.chip {
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+  padding: 7px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.chip:hover { color: var(--text); border-color: var(--accent); }
+.chip.active { background: var(--grad); color: #fff; border-color: transparent; box-shadow: var(--glow); }
+
+.daily-chart { display: flex; align-items: flex-end; gap: 4px; height: 190px; overflow-x: auto; padding-bottom: 2px; }
+.day-col {
+  flex: 1; min-width: 15px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: pointer; padding: 4px 0; border-radius: 8px; transition: background 0.12s;
+}
+.day-stack {
+  width: 72%; max-width: 26px; display: flex; flex-direction: column-reverse; justify-content: flex-start;
+  border-radius: 5px 5px 0 0; overflow: hidden;
+}
+.day-seg { width: 100%; }
+.day-num { font-size: 10px; color: var(--muted); }
+.day-col:hover { background: rgba(168, 85, 247, 0.10); }
+.day-col.selected { background: var(--grad-soft); }
+.day-col.selected .day-num { color: var(--accent); font-weight: 700; }
+
+.day-detail { margin-top: 18px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.day-detail-empty { color: var(--muted); font-size: 13px; }
+.dd-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.dd-head span { color: var(--muted); font-size: 13px; }
+.dd-head b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.dd-cats { display: flex; flex-direction: column; gap: 7px; }
+.dd-cat { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+.dd-cat span:last-child { color: var(--text); font-variant-numeric: tabular-nums; }
+
 /* ---------- Stopka ---------- */
 .footbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
