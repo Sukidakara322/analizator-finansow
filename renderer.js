@@ -323,23 +323,27 @@ function renderKPI() {
   const dim = daysInMonth(currentKey);
   const dayNow = isCur ? today.getDate() : dim;
   const perDay = dayNow > 0 ? t.spent / dayNow : 0;
-  const forecastSpent = isCur ? perDay * dim : t.spent;
-  const forecastBalance = t.start + t.salary - forecastSpent;
   const count = m.expenses.length;
   const avg = count > 0 ? t.spent / count : 0;
   let largest = null;
   for (const e of m.expenses) if (!largest || e.amount > largest.amount) largest = e;
+  const [, mo] = currentKey.split('-');
+  const byDay = monthExpensesByDay(currentKey);
+  let topDay = null;
+  for (const d in byDay) if (topDay === null || byDay[d].total > byDay[topDay].total) topDay = d;
+  const rate = t.salary > 0 ? Math.round((t.saved / t.salary) * 100) : null;
   const pk = prevKey(currentKey);
   const prevSpent = monthTotals(pk).spent;
   const momPct = prevSpent > 0 ? ((t.spent - prevSpent) / prevSpent) * 100 : null;
 
+  // Wszystkie kafelki liczone z realnych danych (bez prognoz/ekstrapolacji).
   const tiles = [];
   tiles.push(kpiTile('Średnio dziennie', fmt(perDay), isCur ? `po ${dayNow} ${plural(dayNow, 'dniu', 'dniach', 'dniach')}` : 'cały miesiąc'));
-  if (isCur) tiles.push(kpiTile('Prognoza wydatków', fmt(forecastSpent), 'do końca miesiąca'));
-  if (isCur) tiles.push(kpiTile('Prognoza salda', fmt(forecastBalance), 'na koniec miesiąca', forecastBalance >= t.start ? 'g' : 'r'));
+  tiles.push(kpiTile('Zaoszczędzono', fmt(t.saved), rate !== null ? `stopa ${rate}%` : 'pensja − wydatki', t.saved >= 0 ? 'g' : 'r'));
+  tiles.push(kpiTile('Najdroższy dzień', topDay ? fmt(byDay[topDay].total) : '—', topDay ? `${String(topDay).padStart(2, '0')}.${mo}` : 'brak wydatków'));
   tiles.push(kpiTile('Największy wydatek', largest ? fmt(largest.amount) : '—', largest ? (largest.name || largest.category) : 'brak wydatków'));
   tiles.push(kpiTile('Transakcje', String(count), count > 0 ? `śr. ${fmt(avg)}` : '—'));
-  if (momPct !== null) tiles.push(kpiTile('Wydatki vs poprz. mies.', (momPct >= 0 ? '+' : '') + Math.round(momPct) + '%', prevSpent ? `było ${fmt(prevSpent)}` : '', momPct <= 0 ? 'g' : 'r'));
+  if (momPct !== null) tiles.push(kpiTile('Wydatki vs poprz. mies.', (momPct >= 0 ? '+' : '') + Math.round(momPct) + '%', `było ${fmt(prevSpent)}`, momPct <= 0 ? 'g' : 'r'));
   grid.innerHTML = tiles.join('');
 }
 
@@ -368,14 +372,12 @@ function renderInsights() {
       ? `Wydajesz o <b>${pctd}% mniej</b> niż w poprzednim miesiącu — dobra robota.`
       : `Wydajesz o <b>${pctd}% więcej</b> niż w poprzednim miesiącu.`);
   }
-  const today = new Date();
-  if (currentKey === keyFromDate(today) && t.salary > 0) {
-    const dim = daysInMonth(currentKey);
-    const dayNow = today.getDate();
-    const perDay = dayNow > 0 ? t.spent / dayNow : 0;
-    const fSpent = perDay * dim;
-    const fBal = t.start + t.salary - fSpent;
-    lines.push(`W tym tempie do końca miesiąca wydasz ok. <b>${fmt(fSpent)}</b>, zostanie ~<b>${fmt(fBal)}</b>.`);
+  const byDay = monthExpensesByDay(currentKey);
+  let topDay = null;
+  for (const d in byDay) if (topDay === null || byDay[d].total > byDay[topDay].total) topDay = d;
+  if (topDay) {
+    const [, mo] = currentKey.split('-');
+    lines.push(`Najdroższy dzień to <b>${String(topDay).padStart(2, '0')}.${mo}</b> — ${fmt(byDay[topDay].total)}.`);
   }
   if (t.salary > 0) {
     const rate = Math.round((t.saved / t.salary) * 100);
