@@ -117,6 +117,7 @@ function render() {
   renderDonut(m);
   renderList(m);
   renderMonthly();
+  renderAnaliza();
 }
 
 function plural(n, one, few, many) {
@@ -274,6 +275,218 @@ function renderMonthly() {
       <div class="mc-label">${MONTH_NAMES[mm - 1].slice(0, 3)}</div>
     </div>`;
   }).join('');
+}
+
+// ================= Analiza =================
+function daysInMonth(key) {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+function monthsRange(endKey, n) {
+  const keys = [];
+  let k = endKey;
+  for (let i = 0; i < n; i++) { keys.unshift(k); k = prevKey(k); }
+  return keys;
+}
+function catAmount(key, cat) {
+  const m = data.months[key];
+  if (!m) return 0;
+  return (m.expenses || []).filter(e => e.category === cat).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+}
+function shortMonth(key) { return MONTH_NAMES[Number(key.split('-')[1]) - 1].slice(0, 3); }
+
+function renderAnaliza() {
+  renderKPI();
+  renderInsights();
+  renderCatBars();
+  renderBalanceTrend();
+  renderSavingsBars();
+  renderCatTrend();
+}
+
+// ---------- Blok 1: KPI ----------
+function kpiTile(title, val, hint, tone) {
+  const cls = tone === 'g' ? 'kpi-g' : tone === 'r' ? 'kpi-r' : '';
+  return `<div class="kpi ${cls}">
+    <div class="kpi-title">${escapeHtml(title)}</div>
+    <div class="kpi-val">${escapeHtml(val)}</div>
+    <div class="kpi-hint">${escapeHtml(hint)}</div>
+  </div>`;
+}
+function renderKPI() {
+  const grid = $('#kpiGrid');
+  const t = monthTotals(currentKey);
+  const m = getMonth(currentKey);
+  const today = new Date();
+  const isCur = currentKey === keyFromDate(today);
+  const dim = daysInMonth(currentKey);
+  const dayNow = isCur ? today.getDate() : dim;
+  const perDay = dayNow > 0 ? t.spent / dayNow : 0;
+  const forecastSpent = isCur ? perDay * dim : t.spent;
+  const forecastBalance = t.start + t.salary - forecastSpent;
+  const count = m.expenses.length;
+  const avg = count > 0 ? t.spent / count : 0;
+  let largest = null;
+  for (const e of m.expenses) if (!largest || e.amount > largest.amount) largest = e;
+  const pk = prevKey(currentKey);
+  const prevSpent = monthTotals(pk).spent;
+  const momPct = prevSpent > 0 ? ((t.spent - prevSpent) / prevSpent) * 100 : null;
+
+  const tiles = [];
+  tiles.push(kpiTile('Średnio dziennie', fmt(perDay), isCur ? `po ${dayNow} ${plural(dayNow, 'dniu', 'dniach', 'dniach')}` : 'cały miesiąc'));
+  if (isCur) tiles.push(kpiTile('Prognoza wydatków', fmt(forecastSpent), 'do końca miesiąca'));
+  if (isCur) tiles.push(kpiTile('Prognoza salda', fmt(forecastBalance), 'na koniec miesiąca', forecastBalance >= t.start ? 'g' : 'r'));
+  tiles.push(kpiTile('Największy wydatek', largest ? fmt(largest.amount) : '—', largest ? (largest.name || largest.category) : 'brak wydatków'));
+  tiles.push(kpiTile('Transakcje', String(count), count > 0 ? `śr. ${fmt(avg)}` : '—'));
+  if (momPct !== null) tiles.push(kpiTile('Wydatki vs poprz. mies.', (momPct >= 0 ? '+' : '') + Math.round(momPct) + '%', prevSpent ? `było ${fmt(prevSpent)}` : '', momPct <= 0 ? 'g' : 'r'));
+  grid.innerHTML = tiles.join('');
+}
+
+// ---------- Blok 1: Wnioski (auto-tekst) ----------
+function renderInsights() {
+  const el = $('#insights');
+  const t = monthTotals(currentKey);
+  const m = getMonth(currentKey);
+  if (t.spent === 0 && t.salary === 0) {
+    el.innerHTML = '<div class="insight">Dodaj pensję i wydatki, aby zobaczyć wnioski i prognozy.</div>';
+    return;
+  }
+  const lines = [];
+  const bd = categoryBreakdown(m);
+  if (bd.length) {
+    const top = bd[0];
+    const pct = t.spent > 0 ? Math.round((top.value / t.spent) * 100) : 0;
+    lines.push(`Najwięcej wydajesz na <b>${escapeHtml(top.name)}</b> — ${fmt(top.value)} (${pct}% wydatków).`);
+  }
+  const pk = prevKey(currentKey);
+  const prevSpent = monthTotals(pk).spent;
+  if (prevSpent > 0) {
+    const d = t.spent - prevSpent;
+    const pctd = Math.round((Math.abs(d) / prevSpent) * 100);
+    lines.push(d < 0
+      ? `Wydajesz o <b>${pctd}% mniej</b> niż w poprzednim miesiącu — dobra robota.`
+      : `Wydajesz o <b>${pctd}% więcej</b> niż w poprzednim miesiącu.`);
+  }
+  const today = new Date();
+  if (currentKey === keyFromDate(today) && t.salary > 0) {
+    const dim = daysInMonth(currentKey);
+    const dayNow = today.getDate();
+    const perDay = dayNow > 0 ? t.spent / dayNow : 0;
+    const fSpent = perDay * dim;
+    const fBal = t.start + t.salary - fSpent;
+    lines.push(`W tym tempie do końca miesiąca wydasz ok. <b>${fmt(fSpent)}</b>, zostanie ~<b>${fmt(fBal)}</b>.`);
+  }
+  if (t.salary > 0) {
+    const rate = Math.round((t.saved / t.salary) * 100);
+    lines.push(rate >= 0
+      ? `Odkładasz <b>${rate}%</b> pensji.`
+      : `Uwaga: w tym miesiącu wydajesz więcej niż zarabiasz (${rate}%).`);
+  }
+  el.innerHTML = lines.map(l => `<div class="insight">${l}</div>`).join('');
+}
+
+// ---------- Blok 3: Kategorie z trendem vs poprzedni miesiąc ----------
+function renderCatBars() {
+  const el = $('#catBars');
+  const m = getMonth(currentKey);
+  const bd = categoryBreakdown(m);
+  if (!bd.length) { el.innerHTML = ''; return; }
+  const total = bd.reduce((s, b) => s + b.value, 0);
+  const max = bd[0].value;
+  const pk = prevKey(currentKey);
+  const prevExists = !!data.months[pk];
+  el.innerHTML = bd.map((b, i) => {
+    const prev = catAmount(pk, b.name);
+    let trend = '';
+    if (prev > 0) {
+      const d = ((b.value - prev) / prev) * 100;
+      const up = d > 0;
+      trend = `<span class="cat-trend ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(Math.round(d))}%</span>`;
+    } else if (prevExists && b.value > 0) {
+      trend = `<span class="cat-trend up">nowe</span>`;
+    }
+    const w = max > 0 ? Math.round((b.value / max) * 100) : 0;
+    const pct = total > 0 ? Math.round((b.value / total) * 100) : 0;
+    return `<div class="cat-bar-row">
+      <div class="cbr-head">
+        <span class="cbr-name"><span class="dot" style="background:${colorFor(i)}"></span>${escapeHtml(b.name)}</span>
+        <span class="cbr-val">${fmt(b.value)} · ${pct}%${trend}</span>
+      </div>
+      <div class="cbr-track"><div class="cbr-fill" style="width:${w}%;background:${colorFor(i)}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ---------- Wspólny wykres liniowy (SVG) ----------
+function lineChartHTML(labels, seriesList, height) {
+  const H = height || 180, W = 600, padX = 6, padY = 16;
+  const n = labels.length;
+  let vals = [];
+  seriesList.forEach(s => { vals = vals.concat(s.values); });
+  let min = Math.min(0, ...vals), max = Math.max(1, ...vals);
+  if (max === min) max = min + 1;
+  const x = (i) => n <= 1 ? W / 2 : padX + i * (W - 2 * padX) / (n - 1);
+  const y = (v) => H - padY - ((v - min) / (max - min)) * (H - 2 * padY);
+  let base = '';
+  if (min < 0) {
+    const zy = y(0);
+    base = `<line x1="0" y1="${zy}" x2="${W}" y2="${zy}" stroke="#3a2f5c" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`;
+  }
+  const paths = seriesList.map(s => {
+    if (n === 1) return `<circle cx="${x(0)}" cy="${y(s.values[0])}" r="4" fill="${s.color}"/>`;
+    const pts = s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
+  }).join('');
+  const svg = `<svg class="lc-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">${base}${paths}</svg>`;
+  const labs = `<div class="lc-labels">${labels.map(l => `<span>${escapeHtml(l)}</span>`).join('')}</div>`;
+  return svg + labs;
+}
+
+// ---------- Blok 4: Trend salda + oszczędności ----------
+function renderBalanceTrend() {
+  const keys = monthsRange(currentKey, 6);
+  const labels = keys.map(shortMonth);
+  const values = keys.map(k => monthTotals(k).balance);
+  $('#balanceTrend').innerHTML = lineChartHTML(labels, [{ color: '#a855f7', values }], 170);
+}
+function renderSavingsBars() {
+  const chart = $('#savingsBars');
+  const keys = monthsRange(currentKey, 6);
+  const rows = keys.map(k => ({ k, saved: monthTotals(k).saved }));
+  const max = Math.max(1, ...rows.map(r => Math.abs(r.saved)));
+  const H = 120;
+  chart.innerHTML = rows.map(r => {
+    const h = Math.round((Math.abs(r.saved) / max) * H);
+    const color = r.saved >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<div class="mc-col ${r.k === currentKey ? 'current' : ''}">
+      <div class="mc-bars" style="height:${H}px">
+        <div class="mc-bar" style="height:${h}px;background:${color}" title="${fmt(r.saved)}"></div>
+      </div>
+      <div class="mc-label">${shortMonth(r.k)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ---------- Blok 5: Kategorie przez miesiące (osobne serie) ----------
+function renderCatTrend() {
+  const container = $('#catTrend');
+  const legend = $('#catTrendLegend');
+  const keys = monthsRange(currentKey, 6);
+  const labels = keys.map(shortMonth);
+  const totals = {};
+  keys.forEach(k => {
+    const m = data.months[k];
+    if (m) (m.expenses || []).forEach(e => { totals[e.category] = (totals[e.category] || 0) + (Number(e.amount) || 0); });
+  });
+  const cats = Object.keys(totals).filter(c => totals[c] > 0).sort((a, b) => totals[b] - totals[a]).slice(0, 6);
+  if (!cats.length) {
+    container.innerHTML = '<div class="empty-hint">Brak wydatków w tym okresie.</div>';
+    legend.innerHTML = '';
+    return;
+  }
+  const series = cats.map((c, i) => ({ color: colorFor(i), values: keys.map(k => catAmount(k, c)) }));
+  container.innerHTML = lineChartHTML(labels, series, 190);
+  legend.innerHTML = cats.map((c, i) => `<div><span class="dot" style="background:${colorFor(i)}"></span> ${escapeHtml(c)}</div>`).join('');
 }
 
 // ---------- Własny dropdown (wielokrotnego użytku) ----------
@@ -464,15 +677,8 @@ function bindEvents() {
   $('#salary').addEventListener('input', (e) => {
     getMonth(currentKey).salary = parseFloat(e.target.value) || 0;
     saveData();
-    // Pełne odświeżenie: pensja wpływa też na saldo start kolejnych miesięcy
-    const t = monthTotals(currentKey);
-    $('#startBalance').textContent = fmt(t.start);
-    $('#currentBalance').textContent = fmt(t.balance);
-    renderImpact(t);
-    renderMonthly();
-    const delta = t.balance - t.start;
-    $('#balanceDelta').textContent = `Zmiana w tym miesiącu: ${delta >= 0 ? '+' : ''}${fmt(delta)}`;
-    $('#balanceDelta').style.color = delta >= 0 ? 'var(--green)' : 'var(--red)';
+    // Pełne odświeżenie (render nie nadpisze aktywnego pola pensji — jest chronione).
+    render();
   });
 
   $('#expenseForm').addEventListener('submit', addExpense);

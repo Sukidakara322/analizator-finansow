@@ -9,23 +9,24 @@ const URL = 'http://localhost:8123/index.html';
 
 const START_APP = `(() => {
   const now = new Date();
-  const key = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-  const prev = now.getMonth() === 0
-    ? (now.getFullYear()-1) + '-12'
-    : now.getFullYear() + '-' + String(now.getMonth()).padStart(2,'0');
+  const keyOf = (o) => { const d = new Date(now.getFullYear(), now.getMonth() - o, 1); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); };
+  const months = {};
+  for (let o = 4; o >= 0; o--) {
+    const k = keyOf(o);
+    const f = 1 + (4 - o) * 0.12;
+    const exp = [
+      {id:k+'a',category:'Jedzenie',name:'Biedronka',amount:Math.round(320*f)+0.5,date:k+'-05'},
+      {id:k+'b',category:'Jedzenie',name:'Lidl',amount:Math.round(180*f),date:k+'-12'},
+      {id:k+'c',category:'Transport',name:'Paliwo',amount:250 + (o%2?40:-20),date:k+'-08'},
+      {id:k+'d',category:'Rachunki',name:'Prąd i internet',amount:230 + o*6,date:k+'-10'}
+    ];
+    if (o < 3) exp.push({id:k+'e',category:'Rozrywka',name:'Kino i Netflix',amount:90 + o*12,date:k+'-14'});
+    if (o === 0) exp.push({id:k+'f',category:'Zdrowie',name:'Apteka',amount:75.99,date:k+'-15'});
+    months[k] = { salary: 5200, expenses: exp };
+  }
   const sample = { version:1, initialBalance:2000,
     categories:['Jedzenie','Transport','Rachunki','Rozrywka','Zdrowie','Ubrania','Inne'],
-    months: {
-      [prev]: { salary:5200, expenses:[ {id:'p1',category:'Jedzenie',name:'Zakupy',amount:800,date:prev+'-10'} ] },
-      [key]: { salary:5200, expenses:[
-        {id:'a',category:'Jedzenie',name:'Biedronka',amount:420.50,date:key+'-05'},
-        {id:'b',category:'Jedzenie',name:'Lidl',amount:180.20,date:key+'-12'},
-        {id:'c',category:'Transport',name:'Paliwo',amount:300,date:key+'-03'},
-        {id:'d',category:'Rozrywka',name:'Kino i Netflix',amount:120,date:key+'-08'},
-        {id:'e',category:'Rachunki',name:'Prąd i internet',amount:250,date:key+'-10'},
-        {id:'f',category:'Zdrowie',name:'Apteka',amount:75.99,date:key+'-15'}
-      ] }
-    } };
+    months };
   document.getElementById('authGate').hidden = true;
   document.getElementById('appRoot').hidden = false;
   window.App.start(sample);
@@ -35,7 +36,7 @@ const START_APP = `(() => {
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
 app.whenReady().then(() => {
-  const win = new BrowserWindow({ show: false, width: 1240, height: 940, webPreferences: { partition: 'shots-fresh' } });
+  const win = new BrowserWindow({ show: false, width: 1240, height: 1300, webPreferences: { partition: 'shots-fresh' } });
 
   async function shot(name) {
     const img = await win.webContents.capturePage();
@@ -60,15 +61,17 @@ app.whenReady().then(() => {
     await shot('view-miesiac.png');                            // widok: Miesiąc
 
     const nav = (v) => run(`document.querySelector('.nav-btn[data-view=${v}]').click();`);
-    await nav('analiza'); await wait(500); await shot('view-analiza.png');
+    await nav('analiza'); await wait(600); await shot('analiza-1.png');
+    await run(`window.scrollTo(0, 760);`); await wait(400); await shot('analiza-2.png');
+    await run(`window.scrollTo(0, document.body.scrollHeight);`); await wait(400); await shot('analiza-3.png');
+    await run(`window.scrollTo(0,0);`);
     await nav('historia'); await wait(400); await shot('view-historia.png');
-    await nav('ustawienia'); await wait(400); await shot('view-ustawienia.png');
 
-    // Widok mobilny
-    await nav('miesiac');
+    // Widok mobilny – Analiza
+    await nav('analiza');
     win.setSize(430, 900);
     await wait(500);
-    await shot('mobile.png');
+    await shot('mobile-analiza.png');
 
     app.quit();
   });

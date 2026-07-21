@@ -160,13 +160,37 @@
 
      <!-- ============ WIDOK: ANALIZA ============ -->
      <section class="view" id="view-analiza">
-        <!-- Wykres kołowy kategorii -->
+        <!-- Blok 1: Podsumowanie miesiąca (KPI + wnioski) -->
+        <section class="panel">
+          <h2>Podsumowanie miesiąca</h2>
+          <div class="kpi-grid" id="kpiGrid"></div>
+          <div class="insights" id="insights"></div>
+        </section>
+
+        <!-- Blok 3: Wydatki wg kategorii (donut + paski z trendem) -->
         <section class="panel">
           <h2>Wydatki wg kategorii</h2>
           <div class="donut-wrap">
             <div id="donut" class="donut"></div>
             <div id="donutLegend" class="donut-legend"></div>
           </div>
+          <div class="cat-bars" id="catBars"></div>
+        </section>
+
+        <!-- Blok 4: Trend salda i oszczędności -->
+        <section class="panel">
+          <h2>Trend salda i oszczędności</h2>
+          <div class="chart-sub">Saldo na koniec miesiąca</div>
+          <div id="balanceTrend" class="line-chart"></div>
+          <div class="chart-sub chart-sub-gap">Oszczędności miesięczne</div>
+          <div id="savingsBars" class="monthly-chart mini"></div>
+        </section>
+
+        <!-- Blok 5: Kategorie przez miesiące (osobne serie) -->
+        <section class="panel">
+          <h2>Kategorie przez miesiące</h2>
+          <div id="catTrend" class="line-chart"></div>
+          <div class="chart-legend" id="catTrendLegend"></div>
         </section>
 
         <!-- Porównanie miesięcy -->
