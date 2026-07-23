@@ -11,7 +11,8 @@ import {
 } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  getFirestore, doc, getDoc, setDoc, onSnapshot
+  getFirestore, doc, getDoc, setDoc, onSnapshot,
+  collection, getDocs, writeBatch, deleteField, deleteDoc
 } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
 
 const LS_KEY = 'analizator-finanse-v1'; // stary klucz localStorage — do migracji danych z telefonu
@@ -102,10 +103,39 @@ function plError(code) {
 }
 
 // --- Stan danych / synchronizacja ---
-let userDocRef = null;
+// Struktura w Firestore:
+//   users/{uid}                 -> profil: { version, initialBalance, categories }
+//   users/{uid}/months/{RRRR-MM} -> { salary, expenses: [...] }
+// Zapis jest różnicowy: do chmury lecą tylko te miesiące, które się zmieniły.
+let profileRef = null;
+let monthsColRef = null;
 let currentData = defaultData();
-let unsub = null;
+let unsubProfile = null;
+let unsubMonths = null;
+let lastSynced = { profile: '', months: {} }; // JSON-y ostatnio zsynchronizowanych wersji
 let pendingInitialBalance = null; // stan konta podany w kroku 2 rejestracji
+
+// Pola profilu / miesiąca w stabilnej kolejności (do porównań JSON).
+function profileOf(d) {
+  return {
+    version: d.version || 1,
+    initialBalance: Number(d.initialBalance) || 0,
+    categories: Array.isArray(d.categories) ? d.categories : []
+  };
+}
+function monthOf(m) {
+  return { salary: Number(m && m.salary) || 0, expenses: (m && m.expenses) || [] };
+}
+function isEmptyMonth(mo) { return mo.salary === 0 && mo.expenses.length === 0; }
+// Do porównań pomijamy puste miesiące (tworzone lokalnie przy przeglądaniu).
+function stripForCompare(d) {
+  const c = { ...profileOf(d), months: {} };
+  for (const k of Object.keys(d.months || {}).sort()) {
+    const mo = monthOf(d.months[k]);
+    if (!isEmptyMonth(mo)) c.months[k] = mo;
+  }
+  return c;
+}
 
 // --- window.store: ten sam interfejs, którego używa renderer.js ---
 window.store = {
@@ -116,9 +146,34 @@ window.store = {
 
   async save(data) {
     currentData = data;
-    if (!userDocRef) return false;
+    if (!profileRef) return false;
     try {
-      await setDoc(userDocRef, { json: JSON.stringify(data), updatedAt: Date.now() }, { merge: true });
+      const writes = [];
+      // Profil — tylko gdy się zmienił
+      const prof = profileOf(data);
+      const profStr = JSON.stringify(prof);
+      if (profStr !== lastSynced.profile) {
+        writes.push(setDoc(profileRef, { ...prof, updatedAt: Date.now() }, { merge: true }));
+        lastSynced.profile = profStr;
+      }
+      // Miesiące — tylko zmienione; pustych (przeglądanych) nie zakładamy
+      for (const key in data.months) {
+        const mo = monthOf(data.months[key]);
+        if (isEmptyMonth(mo) && !(key in lastSynced.months)) continue;
+        const s = JSON.stringify(mo);
+        if (lastSynced.months[key] !== s) {
+          writes.push(setDoc(doc(monthsColRef, key), mo));
+          lastSynced.months[key] = s;
+        }
+      }
+      // Miesiące usunięte z danych (np. po imporcie) — skasuj dokumenty
+      for (const key of Object.keys(lastSynced.months)) {
+        if (!(key in data.months)) {
+          writes.push(deleteDoc(doc(monthsColRef, key)));
+          delete lastSynced.months[key];
+        }
+      }
+      await Promise.all(writes);
       return true;
     } catch (e) {
       console.error('Błąd zapisu do chmury:', e);
@@ -169,26 +224,53 @@ window.store = {
   }
 };
 
+// Zapisz cały zestaw danych jako profil + dokumenty miesięcy (atomowy batch).
+async function writeAllAsBatch(initial, extraProfileFields) {
+  const batch = writeBatch(db);
+  batch.set(profileRef, { ...profileOf(initial), ...(extraProfileFields || {}), updatedAt: Date.now() }, { merge: true });
+  for (const key in initial.months) {
+    const mo = monthOf(initial.months[key]);
+    if (isEmptyMonth(mo)) continue;
+    batch.set(doc(monthsColRef, key), mo);
+  }
+  await batch.commit();
+}
+
 // --- Reakcja na logowanie / wylogowanie ---
 onAuthStateChanged(auth, async (user) => {
-  if (unsub) { unsub(); unsub = null; }
+  if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+  if (unsubMonths) { unsubMonths(); unsubMonths = null; }
 
   if (!user) { showGate(); goStep(1); setBusy(false); setBusy2(false); return; }
 
   // Zalogowany: wczytaj dane, uruchom aplikację, włącz synchronizację na żywo.
-  userDocRef = doc(db, 'users', user.uid);
+  profileRef = doc(db, 'users', user.uid);
+  monthsColRef = collection(db, 'users', user.uid, 'months');
+  lastSynced = { profile: '', months: {} };
+
   let initial;
   try {
-    const snap = await getDoc(userDocRef);
-    if (snap.exists() && snap.data().json) {
-      initial = normalize(JSON.parse(snap.data().json));
+    const snap = await getDoc(profileRef);
+    const raw = snap.exists() ? snap.data() : null;
+
+    if (raw && raw.json) {
+      // MIGRACJA: stary format (jeden blob JSON) -> profil + dokumenty miesięcy.
+      // Batch jest atomowy: albo wszystko się przenosi, albo nic (dane bezpieczne).
+      initial = normalize(JSON.parse(raw.json));
+      await writeAllAsBatch(initial, { json: deleteField() });
+      console.log('Dane zmigrowane do struktury per-miesiąc.');
+    } else if (raw) {
+      // Nowy format: profil + kolekcja miesięcy.
+      const monthsSnap = await getDocs(monthsColRef);
+      const months = {};
+      monthsSnap.forEach(d => { months[d.id] = monthOf(d.data()); });
+      initial = normalize({ ...profileOf(raw), months });
     } else {
       // Pierwsze logowanie / nowe konto: dane z pamięci telefonu albo świeży zestaw.
       const ls = localStorage.getItem(LS_KEY);
       initial = ls ? normalize(JSON.parse(ls)) : defaultData();
-      // Stan początkowy konta podany w kroku 2 rejestracji.
       if (typeof pendingInitialBalance === 'number') initial.initialBalance = pendingInitialBalance;
-      await setDoc(userDocRef, { json: JSON.stringify(initial), updatedAt: Date.now() });
+      await writeAllAsBatch(initial);
     }
   } catch (e) {
     console.error('Błąd wczytywania danych:', e);
@@ -196,20 +278,52 @@ onAuthStateChanged(auth, async (user) => {
   }
   pendingInitialBalance = null;
 
+  // Zapamiętaj, co jest zsynchronizowane (do zapisu różnicowego)
+  lastSynced.profile = JSON.stringify(profileOf(initial));
+  lastSynced.months = {};
+  for (const key in initial.months) {
+    const mo = monthOf(initial.months[key]);
+    if (!isEmptyMonth(mo)) lastSynced.months[key] = JSON.stringify(mo);
+  }
+
   currentData = initial;
   showApp();
   window.App.start(initial);
 
-  // Synchronizacja na żywo — zmiany z innych urządzeń pojawiają się natychmiast.
-  unsub = onSnapshot(userDocRef, (snap) => {
-    if (!snap.exists()) return;
-    const j = snap.data().json;
-    if (!j) return;
-    let incoming;
-    try { incoming = normalize(JSON.parse(j)); } catch { return; }
-    if (JSON.stringify(incoming) === JSON.stringify(currentData)) return; // brak realnej zmiany
-    currentData = incoming;
-    window.App.applyRemote(incoming);
+  // --- Synchronizacja na żywo: profil + kolekcja miesięcy ---
+  let remoteProfile = profileOf(initial);
+  const remoteMonths = {};
+  for (const key in initial.months) {
+    const mo = monthOf(initial.months[key]);
+    if (!isEmptyMonth(mo)) remoteMonths[key] = mo;
+  }
+
+  const applyRemoteIfChanged = () => {
+    const candidate = normalize({ ...remoteProfile, months: JSON.parse(JSON.stringify(remoteMonths)) });
+    if (JSON.stringify(stripForCompare(candidate)) === JSON.stringify(stripForCompare(currentData))) return;
+    currentData = candidate;
+    lastSynced.profile = JSON.stringify(profileOf(candidate));
+    lastSynced.months = {};
+    for (const k in candidate.months) {
+      const mo = monthOf(candidate.months[k]);
+      if (!isEmptyMonth(mo)) lastSynced.months[k] = JSON.stringify(mo);
+    }
+    window.App.applyRemote(candidate);
+  };
+
+  unsubProfile = onSnapshot(profileRef, (s) => {
+    if (!s.exists()) return;
+    const d = s.data();
+    if (d.json) return; // stary format (w trakcie migracji) — pomiń
+    remoteProfile = profileOf(d);
+    applyRemoteIfChanged();
+  });
+  unsubMonths = onSnapshot(monthsColRef, (qs) => {
+    qs.docChanges().forEach((ch) => {
+      if (ch.type === 'removed') delete remoteMonths[ch.doc.id];
+      else remoteMonths[ch.doc.id] = monthOf(ch.doc.data());
+    });
+    applyRemoteIfChanged();
   });
 });
 

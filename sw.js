@@ -1,5 +1,5 @@
 // Service worker — pozwala aplikacji działać offline (po pierwszym wczytaniu).
-const CACHE = 'analizator-v10';
+const CACHE = 'analizator-v11';
 const ASSETS = [
   './',
   './index.html',
