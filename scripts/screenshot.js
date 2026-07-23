@@ -71,6 +71,9 @@ app.whenReady().then(() => {
     await run(`document.getElementById('nameSuggest').hidden = true; document.getElementById('expName').value='';`);
 
     const nav = (v) => run(`document.querySelector('.nav-btn[data-view=${v}]').click();`);
+    await nav('analiza'); await wait(500);
+    await run(`(function(){ var el=document.getElementById('catTrend'); window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 140); })();`);
+    await wait(500); await shot('analiza-cat.png');            // kategorie przez miesiące (słupki)
     await nav('historia'); await wait(400); await shot('view-historia.png');
 
     await run(`(function(){ var s=document.getElementById('searchInput'); s.value='lidl'; s.dispatchEvent(new Event('input'));

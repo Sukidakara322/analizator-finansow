@@ -706,30 +706,6 @@ function renderCatBars() {
   }).join('');
 }
 
-// ---------- Wspólny wykres liniowy (SVG) ----------
-function lineChartHTML(labels, seriesList, height) {
-  const H = height || 180, W = 600, padX = 6, padY = 16;
-  const n = labels.length;
-  let vals = [];
-  seriesList.forEach(s => { vals = vals.concat(s.values); });
-  let min = Math.min(0, ...vals), max = Math.max(1, ...vals);
-  if (max === min) max = min + 1;
-  const x = (i) => n <= 1 ? W / 2 : padX + i * (W - 2 * padX) / (n - 1);
-  const y = (v) => H - padY - ((v - min) / (max - min)) * (H - 2 * padY);
-  let base = '';
-  if (min < 0) {
-    const zy = y(0);
-    base = `<line x1="0" y1="${zy}" x2="${W}" y2="${zy}" stroke="#3a2f5c" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`;
-  }
-  const paths = seriesList.map(s => {
-    if (n === 1) return `<circle cx="${x(0)}" cy="${y(s.values[0])}" r="4" fill="${s.color}"/>`;
-    const pts = s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
-  }).join('');
-  const svg = `<svg class="lc-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">${base}${paths}</svg>`;
-  const labs = `<div class="lc-labels">${labels.map(l => `<span>${escapeHtml(l)}</span>`).join('')}</div>`;
-  return svg + labs;
-}
 
 // ---------- Blok 4: Wydatki dzień po dniu ----------
 // Zbiera wydatki miesiąca pogrupowane po dniu: { dzień: {total, byCat, items} }.
@@ -825,26 +801,54 @@ function renderDayDetail(byDay, day, key) {
     <div class="dd-cats">${cats.map(([c, v]) => `<div class="dd-cat"><span>${escapeHtml(c)}</span><span>${fmt(v)}</span></div>`).join('')}</div>`;
 }
 
-// ---------- Blok 5: Kategorie przez miesiące (osobne serie) ----------
+// ---------- Blok 5: Kategorie przez miesiące (grupowane słupki) ----------
 function renderCatTrend() {
   const container = $('#catTrend');
   const legend = $('#catTrendLegend');
-  const keys = monthsRange(currentKey, 6);
-  const labels = keys.map(shortMonth);
+  // Zakres od pierwszego miesiąca z wydatkami (bez pustych miesięcy z lewej)
+  const allKeys = monthsRange(currentKey, 6);
+  const firstIdx = allKeys.findIndex(k => {
+    const m = data.months[k];
+    return m && (m.expenses || []).length > 0;
+  });
+  if (firstIdx < 0) {
+    container.innerHTML = '<div class="empty-hint">Brak wydatków w tym okresie.</div>';
+    legend.innerHTML = '';
+    return;
+  }
+  const keys = allKeys.slice(firstIdx);
+
   const totals = {};
   keys.forEach(k => {
     const m = data.months[k];
     if (m) (m.expenses || []).forEach(e => { totals[e.category] = (totals[e.category] || 0) + (Number(e.amount) || 0); });
   });
   const cats = Object.keys(totals).filter(c => totals[c] > 0).sort((a, b) => totals[b] - totals[a]).slice(0, 6);
-  if (!cats.length) {
-    container.innerHTML = '<div class="empty-hint">Brak wydatków w tym okresie.</div>';
-    legend.innerHTML = '';
-    return;
-  }
-  const series = cats.map((c, i) => ({ color: colorFor(i), values: keys.map(k => catAmount(k, c)) }));
-  container.innerHTML = lineChartHTML(labels, series, 190);
-  legend.innerHTML = cats.map((c, i) => `<div><span class="dot" style="background:${colorFor(i)}"></span> ${escapeHtml(c)}</div>`).join('');
+  const colorOf = {};
+  cats.forEach((c, i) => { colorOf[c] = colorFor(i); });
+
+  let max = 1;
+  keys.forEach(k => cats.forEach(c => { max = Math.max(max, catAmount(k, c)); }));
+
+  const H = 190;
+  // Siatka z kwotami (25/50/75/100% zakresu)
+  const gridHTML = [0.25, 0.5, 0.75, 1].map(f =>
+    `<div class="gb-line" style="bottom:${(f * 100).toFixed(1)}%"><span>${Math.round(max * f).toLocaleString('pl-PL')} zł</span></div>`
+  ).join('');
+
+  const groupsHTML = keys.map(k => `<div class="gb-slot">
+    <div class="gb-bars">${cats.map(c => {
+      const v = catAmount(k, c);
+      return v > 0
+        ? `<div class="gb-bar" style="height:${Math.max(3, Math.round((v / max) * H))}px;background:${colorOf[c]}" title="${escapeHtml(c)} · ${shortMonth(k)}: ${fmt(v)}"></div>`
+        : `<div class="gb-bar gb-zero"></div>`;
+    }).join('')}</div>
+  </div>`).join('');
+
+  container.innerHTML = `<div class="gb-plot" style="height:${H}px">${gridHTML}<div class="gb-groups">${groupsHTML}</div></div>
+    <div class="gb-months">${keys.map(k => `<span>${shortMonth(k)}</span>`).join('')}</div>`;
+
+  legend.innerHTML = cats.map(c => `<div><span class="dot" style="background:${colorOf[c]}"></span> ${escapeHtml(c)}</div>`).join('');
 }
 
 // ---------- Własny dropdown (wielokrotnego użytku) ----------
