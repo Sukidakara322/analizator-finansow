@@ -16,7 +16,28 @@ import {
   collection, getDocs, writeBatch, deleteField, deleteDoc
 } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
 
+const APP_VER = '2026-07-24.2'; // podbijać przy każdym wdrożeniu (razem z wersja.txt)
 const LS_KEY = 'analizator-finanse-v1'; // stary klucz localStorage — do migracji danych z telefonu
+
+// Pokaż wersję w Ustawieniach
+const verLabel = document.getElementById('appVerLabel');
+if (verLabel) verLabel.textContent = APP_VER;
+
+// Auto-aktualizacja: jeśli na serwerze jest nowsza wersja, przeładuj raz automatycznie.
+if (location.protocol.startsWith('http')) {
+  fetch('./wersja.txt?v=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.ok ? r.text() : null)
+    .then(txt => {
+      if (!txt) return;
+      const remote = txt.trim();
+      if (remote && remote !== APP_VER && sessionStorage.getItem('autoUpdateDone') !== remote) {
+        sessionStorage.setItem('autoUpdateDone', remote);
+        cloudToast('Aktualizuję aplikację do nowej wersji…');
+        setTimeout(() => location.reload(), 800);
+      }
+    })
+    .catch(() => {});
+}
 const DEFAULT_CATEGORIES = ['Jedzenie', 'Transport', 'Rachunki', 'Rozrywka', 'Zdrowie', 'Ubrania', 'Inne'];
 
 function defaultData() { return { version: 1, initialBalance: 0, categories: [...DEFAULT_CATEGORIES], months: {} }; }
@@ -156,13 +177,35 @@ function cloudToast(msg) {
   setTimeout(() => { t.hidden = true; }, 4000);
 }
 
-// Naprawa danych: usuwa zduplikowane wpisy (ten sam id w kilku miesiącach
-// albo podwójnie w jednym) — mogły powstać przy wyścigu synchronizacji.
+// Naprawa danych: (0) każdy wpis trafia do miesiąca zgodnego ze swoją datą,
+// (1-2) usuwa zduplikowane id, (3) scala wpisy o identycznej treści.
+// Skutki dawnych wyścigów synchronizacji i błędów zapisu.
 function repairDuplicates(d) {
   let changed = false;
   const keys = Object.keys(d.months || {}).sort();
-  // 1) duplikaty w obrębie miesiąca — zostaje ostatnie wystąpienie
+
+  // 0) wpis w niewłaściwym miesiącu (data mówi co innego niż "koszyk") -> przenieś
   for (const k of keys) {
+    const m = d.months[k];
+    if (!m || !Array.isArray(m.expenses)) continue;
+    const stay = [];
+    for (const e of m.expenses) {
+      const dk = (e.date || '').slice(0, 7);
+      if (dk && /^\d{4}-\d{2}$/.test(dk) && dk !== k) {
+        if (!d.months[dk]) d.months[dk] = { salary: 0, incomes: [], expenses: [] };
+        if (!Array.isArray(d.months[dk].expenses)) d.months[dk].expenses = [];
+        d.months[dk].expenses.push(e);
+        changed = true;
+      } else {
+        stay.push(e);
+      }
+    }
+    if (stay.length !== m.expenses.length) m.expenses = stay;
+  }
+
+  const keys2 = Object.keys(d.months).sort();
+  // 1) duplikaty id w obrębie miesiąca — zostaje ostatnie wystąpienie
+  for (const k of keys2) {
     const m = d.months[k];
     if (!m || !Array.isArray(m.expenses)) continue;
     const byId = new Map();
@@ -172,9 +215,9 @@ function repairDuplicates(d) {
       changed = true;
     }
   }
-  // 2) ten sam wpis w kilku miesiącach — zostaje kopia w miesiącu zgodnym z datą
+  // 2) ten sam id w kilku miesiącach — zostaje kopia w miesiącu zgodnym z datą
   const locations = new Map();
-  for (const k of keys) {
+  for (const k of keys2) {
     for (const e of (d.months[k].expenses || [])) {
       if (!locations.has(e.id)) locations.set(e.id, []);
       locations.get(e.id).push({ key: k, e });
@@ -187,6 +230,21 @@ function repairDuplicates(d) {
     for (const l of locs) {
       if (l === keep) continue;
       d.months[l.key].expenses = d.months[l.key].expenses.filter(e => e.id !== id);
+    }
+  }
+  // 3) kopie o identycznej treści (nazwa+kwota+data) w tym samym miesiącu —
+  //    zostaje pierwsza (oryginał z właściwego miesiąca, nie dosunięta kopia)
+  for (const k of keys2) {
+    const m = d.months[k];
+    if (!m || !Array.isArray(m.expenses)) continue;
+    const byContent = new Map();
+    for (const e of m.expenses) {
+      const ck = (e.name || '') + '|' + (Number(e.amount) || 0) + '|' + (e.date || '');
+      if (!byContent.has(ck)) byContent.set(ck, e);
+    }
+    if (byContent.size !== m.expenses.length) {
+      m.expenses = [...byContent.values()];
+      changed = true;
     }
   }
   return changed;
