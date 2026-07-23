@@ -144,6 +144,54 @@ function stripForCompare(d) {
   return c;
 }
 
+// Krótki komunikat dla użytkownika (poza reactem renderera).
+function cloudToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = msg;
+  t.appendChild(span);
+  t.hidden = false;
+  setTimeout(() => { t.hidden = true; }, 4000);
+}
+
+// Naprawa danych: usuwa zduplikowane wpisy (ten sam id w kilku miesiącach
+// albo podwójnie w jednym) — mogły powstać przy wyścigu synchronizacji.
+function repairDuplicates(d) {
+  let changed = false;
+  const keys = Object.keys(d.months || {}).sort();
+  // 1) duplikaty w obrębie miesiąca — zostaje ostatnie wystąpienie
+  for (const k of keys) {
+    const m = d.months[k];
+    if (!m || !Array.isArray(m.expenses)) continue;
+    const byId = new Map();
+    m.expenses.forEach(e => byId.set(e.id, e));
+    if (byId.size !== m.expenses.length) {
+      m.expenses = [...byId.values()];
+      changed = true;
+    }
+  }
+  // 2) ten sam wpis w kilku miesiącach — zostaje kopia w miesiącu zgodnym z datą
+  const locations = new Map();
+  for (const k of keys) {
+    for (const e of (d.months[k].expenses || [])) {
+      if (!locations.has(e.id)) locations.set(e.id, []);
+      locations.get(e.id).push({ key: k, e });
+    }
+  }
+  for (const [id, locs] of locations) {
+    if (locs.length < 2) continue;
+    changed = true;
+    const keep = locs.find(l => (l.e.date || '').slice(0, 7) === l.key) || locs[locs.length - 1];
+    for (const l of locs) {
+      if (l === keep) continue;
+      d.months[l.key].expenses = d.months[l.key].expenses.filter(e => e.id !== id);
+    }
+  }
+  return changed;
+}
+
 // --- window.store: ten sam interfejs, którego używa renderer.js ---
 window.store = {
   isElectron: false,
@@ -156,12 +204,13 @@ window.store = {
     if (!profileRef) return false;
     try {
       const writes = [];
+      const marks = []; // lastSynced aktualizujemy DOPIERO po udanym zapisie
       // Profil — tylko gdy się zmienił
       const prof = profileOf(data);
       const profStr = JSON.stringify(prof);
       if (profStr !== lastSynced.profile) {
         writes.push(setDoc(profileRef, { ...prof, updatedAt: Date.now() }, { merge: true }));
-        lastSynced.profile = profStr;
+        marks.push(() => { lastSynced.profile = profStr; });
       }
       // Miesiące — tylko zmienione; pustych (przeglądanych) nie zakładamy
       for (const key in data.months) {
@@ -170,20 +219,22 @@ window.store = {
         const s = JSON.stringify(mo);
         if (lastSynced.months[key] !== s) {
           writes.push(setDoc(doc(monthsColRef, key), mo));
-          lastSynced.months[key] = s;
+          marks.push(() => { lastSynced.months[key] = s; });
         }
       }
       // Miesiące usunięte z danych (np. po imporcie) — skasuj dokumenty
       for (const key of Object.keys(lastSynced.months)) {
         if (!(key in data.months)) {
           writes.push(deleteDoc(doc(monthsColRef, key)));
-          delete lastSynced.months[key];
+          marks.push(() => { delete lastSynced.months[key]; });
         }
       }
       await Promise.all(writes);
+      marks.forEach(f => f());
       return true;
     } catch (e) {
       console.error('Błąd zapisu do chmury:', e);
+      cloudToast('Nie udało się zapisać do chmury — ponowię przy następnej zmianie.');
       return false;
     }
   },
@@ -285,7 +336,8 @@ onAuthStateChanged(auth, async (user) => {
   }
   pendingInitialBalance = null;
 
-  // Zapamiętaj, co jest zsynchronizowane (do zapisu różnicowego)
+  // Zapamiętaj FAKTYCZNY stan chmury (do zapisu różnicowego) — przed naprawą,
+  // żeby ewentualna naprawa została wykryta jako zmiana i zapisana.
   lastSynced.profile = JSON.stringify(profileOf(initial));
   lastSynced.months = {};
   for (const key in initial.months) {
@@ -293,9 +345,18 @@ onAuthStateChanged(auth, async (user) => {
     if (!isEmptyMonth(mo)) lastSynced.months[key] = JSON.stringify(mo);
   }
 
+  // Automatyczna naprawa zduplikowanych wpisów (skutki dawnych wyścigów synchronizacji)
+  const repaired = repairDuplicates(initial);
+
   currentData = initial;
   showApp();
   window.App.start(initial);
+
+  if (repaired) {
+    console.log('Wykryto i naprawiono zduplikowane wpisy.');
+    cloudToast('Naprawiono niespójność danych — wykresy są już zgodne z historią.');
+    window.store.save(initial);
+  }
 
   // --- Synchronizacja na żywo: profil + kolekcja miesięcy ---
   let remoteProfile = profileOf(initial);
