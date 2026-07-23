@@ -128,6 +128,21 @@ body {
 .card.accent-green::before { background: linear-gradient(180deg, #2fe6b0, #22d3ee); }
 .card-title { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
 .card-input { display: flex; align-items: baseline; gap: 6px; margin-top: 10px; }
+.salary-locked { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.salary-locked .card-value { margin-top: 10px; }
+.salary-locked .edit-btn { margin-top: 10px; font-size: 15px; }
+.card-input.salary-editor { align-items: center; }
+.mini-confirm {
+  background: var(--grad); color: #fff; border: none; width: 34px; height: 34px;
+  border-radius: 9px; font-weight: 700; font-size: 14px; cursor: pointer; flex-shrink: 0;
+  box-shadow: var(--glow);
+}
+.mini-confirm:hover { filter: brightness(1.1); }
+.mini-cancel {
+  background: var(--panel-2); color: var(--muted); border: 1px solid var(--border);
+  width: 34px; height: 34px; border-radius: 9px; cursor: pointer; flex-shrink: 0; font-size: 12px;
+}
+.mini-cancel:hover { color: var(--red); border-color: var(--red); }
 .card-input input {
   background: transparent; border: none; color: var(--text); font-size: 26px; font-weight: 700;
   width: 100%; outline: none; border-bottom: 2px solid transparent; padding-bottom: 2px;

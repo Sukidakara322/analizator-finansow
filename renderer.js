@@ -11,6 +11,7 @@ let editCategoryDropdown = null; // dropdown kategorii w oknie edycji
 let editingExpense = null;  // { id, key } aktualnie edytowany wydatek
 let editingCat = null;      // kategoria w trybie zmiany nazwy
 let editingIncomeId = null; // edytowany przychód (formularz Inne przychody)
+let salaryEditing = false;  // czy pole pensji jest w trybie edycji (po zatwierdzeniu blokada)
 let searchQuery = '';       // wyszukiwarka w Historii
 let filterCategory = null;  // filtr kategorii w Historii (null = wszystkie)
 let historyMonth = null;    // zakres Historii: null = bieżący miesiąc (podąża za góra), 'all' | 'RRRR-MM'
@@ -128,9 +129,15 @@ function render() {
   // Etykieta miesiąca
   $('#monthLabel').textContent = labelFromKey(currentKey);
 
-  // Pensja – edytowalne pole (nie nadpisuj podczas edycji)
+  // Pensja: po zatwierdzeniu karta jest zablokowana (tylko odczyt + przycisk edycji)
+  const hasSalary = (Number(m.salary) || 0) > 0;
+  const salEditing = salaryEditing || !hasSalary;
+  $('#salaryLocked').hidden = salEditing;
+  $('#salaryEditor').hidden = !salEditing;
+  $('#salaryValue').textContent = fmt(m.salary);
+  $('#salaryCancel').hidden = !(salEditing && hasSalary);
   const sal = $('#salary');
-  if (document.activeElement !== sal) sal.value = m.salary || '';
+  if (salEditing && document.activeElement !== sal) sal.value = m.salary || '';
 
   // Podpowiedź pod pensją: dodatkowe przychody i suma
   const sh = $('#salaryHint');
@@ -1201,8 +1208,8 @@ function showView(name) {
 }
 
 function bindEvents() {
-  $('#prevMonth').onclick = () => { currentKey = prevKey(currentKey); dailyRange = null; dailyDay = null; historyMonth = null; resetIncomeForm(); syncFormDate(); render(); };
-  $('#nextMonth').onclick = () => { currentKey = nextKey(currentKey); dailyRange = null; dailyDay = null; historyMonth = null; resetIncomeForm(); syncFormDate(); render(); };
+  $('#prevMonth').onclick = () => { currentKey = prevKey(currentKey); dailyRange = null; dailyDay = null; historyMonth = null; salaryEditing = false; resetIncomeForm(); syncFormDate(); render(); };
+  $('#nextMonth').onclick = () => { currentKey = nextKey(currentKey); dailyRange = null; dailyDay = null; historyMonth = null; salaryEditing = false; resetIncomeForm(); syncFormDate(); render(); };
 
   // Inne przychody
   $('#incomeForm').addEventListener('submit', submitIncome);
@@ -1246,12 +1253,26 @@ function bindEvents() {
     renderDaily();
   });
 
-  $('#salary').addEventListener('input', (e) => {
-    getMonth(currentKey).salary = parseFloat(e.target.value) || 0;
-    saveData();
-    // Pełne odświeżenie (render nie nadpisze aktywnego pola pensji — jest chronione).
+  // Pensja: zapis dopiero po zatwierdzeniu, potem blokada do czasu kliknięcia edycji
+  const confirmSalary = () => {
+    const v = parseFloat($('#salary').value);
+    if (isNaN(v) || v < 0) { toast('Podaj poprawną kwotę'); return; }
+    getMonth(currentKey).salary = Number(v.toFixed(2));
+    salaryEditing = false;
+    saveData(true);
     render();
-  });
+    toast('Zapisano pensję');
+  };
+  $('#salaryConfirm').onclick = confirmSalary;
+  $('#salary').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmSalary(); });
+  $('#salaryEditBtn').onclick = () => {
+    salaryEditing = true;
+    render();
+    const sal = $('#salary');
+    sal.focus();
+    sal.select();
+  };
+  $('#salaryCancel').onclick = () => { salaryEditing = false; render(); };
 
   $('#expenseForm').addEventListener('submit', addExpense);
 

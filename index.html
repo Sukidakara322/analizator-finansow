@@ -84,9 +84,15 @@
 
         <div class="card">
           <label class="card-title">Otrzymana pensja</label>
-          <div class="card-input">
+          <div class="salary-locked" id="salaryLocked" hidden>
+            <div class="card-value" id="salaryValue">0,00 zł</div>
+            <button type="button" class="edit-btn" id="salaryEditBtn" title="Edytuj pensję" aria-label="Edytuj pensję">&#9998;</button>
+          </div>
+          <div class="card-input salary-editor" id="salaryEditor">
             <input type="number" id="salary" step="0.01" placeholder="0,00" />
             <span class="unit">zł</span>
+            <button type="button" class="mini-confirm" id="salaryConfirm" title="Zatwierdź">✓</button>
+            <button type="button" class="mini-cancel" id="salaryCancel" title="Anuluj" hidden>&#10005;</button>
           </div>
           <p class="card-hint" id="salaryHint">Wpisz kwotę wynagrodzenia</p>
         </div>
