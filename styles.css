@@ -521,6 +521,13 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cur
 .auth-card .primary-btn { margin-top: 4px; }
 .auth-signup { width: 100%; }
 .auth-error { color: var(--red); font-size: 13px; min-height: 18px; }
+.auth-error.ok { color: var(--green); }
+.auth-link {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: 12px; text-decoration: underline; padding: 4px; font-family: inherit;
+  transition: color 0.15s;
+}
+.auth-link:hover { color: var(--accent); }
 .auth-busy { color: var(--neon); font-size: 13px; }
 .auth-hint { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.5; }
 .auth-hint b { color: var(--text); }

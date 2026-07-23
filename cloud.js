@@ -7,7 +7,8 @@ import { firebaseConfig } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
 import {
   getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence,
-  signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut
+  signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+  sendPasswordResetEmail
 } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -37,6 +38,7 @@ function normalize(p) {
 // --- Inicjalizacja Firebase ---
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+auth.languageCode = 'pl'; // e-maile od Firebase (np. reset hasła) po polsku
 let db;
 try {
   // Pamięć podręczna na dysku -> praca offline i szybkie starty.
@@ -66,7 +68,8 @@ const elBusy2 = document.getElementById('authBusy2');
 const btnFinish = document.getElementById('authFinish');
 const btnBack = document.getElementById('authBack');
 
-function setError(msg) { if (elError) elError.textContent = msg || ''; }
+function setError(msg) { if (elError) { elError.textContent = msg || ''; elError.classList.remove('ok'); } }
+function setInfo(msg) { if (elError) { elError.textContent = msg || ''; elError.classList.add('ok'); } }
 function setError2(msg) { if (elError2) elError2.textContent = msg || ''; }
 function setBusy(on) {
   if (btnSignIn) btnSignIn.disabled = on;
@@ -383,6 +386,24 @@ async function finishSignUp() {
     }
   }
 }
+
+// Reset hasła: wysyła e-mail z linkiem do ustawienia nowego hasła.
+async function forgotPassword() {
+  const email = (elEmail?.value || '').trim();
+  if (!email) { setError('Wpisz swój adres e-mail powyżej i kliknij ponownie.'); return; }
+  setError(''); setBusy(true);
+  try {
+    await sendPasswordResetEmail(auth, email);
+    setBusy(false);
+    setInfo(`Jeśli konto istnieje, wysłaliśmy link resetujący na ${email}. Sprawdź skrzynkę (także spam).`);
+  } catch (e) {
+    setBusy(false);
+    setError(plError(e.code || e.message));
+  }
+}
+
+const btnForgot = document.getElementById('authForgot');
+if (btnForgot) btnForgot.onclick = forgotPassword;
 
 if (btnSignIn) btnSignIn.onclick = signIn;
 if (btnSignUp) btnSignUp.onclick = startSignUp;
