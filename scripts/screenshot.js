@@ -73,9 +73,15 @@ app.whenReady().then(() => {
     const nav = (v) => run(`document.querySelector('.nav-btn[data-view=${v}]').click();`);
     await nav('historia'); await wait(400); await shot('view-historia.png');
 
-    await run(`(function(){ var s=document.getElementById('searchInput'); s.value='lidl'; s.dispatchEvent(new Event('input')); document.getElementById('allMonthsChip').click(); })();`);
+    await run(`(function(){ var s=document.getElementById('searchInput'); s.value='lidl'; s.dispatchEvent(new Event('input'));
+      document.querySelector('#filterMonth .dd-trigger').click();
+      var all=[...document.querySelectorAll('#filterMonth .dd-option')].find(o=>o.textContent==='Wszystkie miesiące');
+      if (all) all.click(); })();`);
     await wait(400); await shot('search.png');                 // wyniki wyszukiwania (wszystkie miesiące)
-    await run(`(function(){ var s=document.getElementById('searchInput'); s.value=''; s.dispatchEvent(new Event('input')); document.getElementById('allMonthsChip').click(); })();`);
+    await run(`(function(){ var s=document.getElementById('searchInput'); s.value=''; s.dispatchEvent(new Event('input'));
+      document.querySelector('#filterMonth .dd-trigger').click();
+      var opts=[...document.querySelectorAll('#filterMonth .dd-option')];
+      if (opts[1]) opts[1].click(); })();`);
     await wait(300);
 
     await run(`document.querySelector('#expenseList .del-btn').click();`);

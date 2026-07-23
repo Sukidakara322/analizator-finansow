@@ -13,8 +13,9 @@ let editingCat = null;      // kategoria w trybie zmiany nazwy
 let editingIncomeId = null; // edytowany przychód (formularz Inne przychody)
 let searchQuery = '';       // wyszukiwarka w Historii
 let filterCategory = null;  // filtr kategorii w Historii (null = wszystkie)
-let searchAllMonths = false;// szukanie we wszystkich miesiącach
+let historyMonth = null;    // zakres Historii: null = bieżący miesiąc (podąża za góra), 'all' | 'RRRR-MM'
 const ALL_CATS = 'Wszystkie kategorie';
+const ALL_MONTHS = 'Wszystkie miesiące';
 
 const MONTH_NAMES = [
   'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
@@ -325,13 +326,45 @@ function renderDonut(m) {
 }
 
 // ---------- Lista wydatków ----------
+// Zakres miesięcy dla Historii ('all' albo konkretny klucz; null = bieżący miesiąc).
+function historyScope() {
+  return historyMonth === null ? currentKey : historyMonth;
+}
+function capFirst(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// Dropdown wyboru miesiąca w Historii: miesiące z danymi + "Wszystkie miesiące".
+function refreshHistoryMonthOptions() {
+  if (!filterMonthDropdown) {
+    filterMonthDropdown = createDropdown($('#filterMonth'), (v) => {
+      historyMonth = (v === ALL_MONTHS) ? 'all' : (historyMonthByLabel.get(v) || null);
+      renderList();
+    });
+  }
+  const keys = new Set(
+    Object.keys(data.months).filter((k) => {
+      const m = data.months[k];
+      return (Number(m.salary) || 0) !== 0 || (m.incomes || []).length > 0 || (m.expenses || []).length > 0;
+    })
+  );
+  keys.add(currentKey);
+  const sorted = [...keys].sort().reverse();
+  historyMonthByLabel = new Map();
+  const labels = [ALL_MONTHS];
+  for (const k of sorted) {
+    const label = capFirst(labelFromKey(k));
+    historyMonthByLabel.set(label, k);
+    labels.push(label);
+  }
+  const scope = historyScope();
+  const selected = scope === 'all' ? ALL_MONTHS : capFirst(labelFromKey(scope));
+  filterMonthDropdown.setOptions(labels, labels.includes(selected) ? selected : labels[1]);
+}
+
 // Wydatki po zastosowaniu filtrów wyszukiwarki: [{ e, key }].
 function getFilteredExpenses() {
   const q = searchQuery.trim().toLowerCase();
-  const hasFilter = q.length > 0 || !!filterCategory;
-  const keys = (searchAllMonths && hasFilter)
-    ? Object.keys(data.months).sort().reverse()
-    : [currentKey];
+  const scope = historyScope();
+  const keys = scope === 'all' ? Object.keys(data.months).sort().reverse() : [scope];
   const out = [];
   for (const k of keys) {
     const m = data.months[k];
@@ -349,16 +382,18 @@ function renderList() {
   const container = $('#expenseList');
   const q = searchQuery.trim();
   const hasFilter = q.length > 0 || !!filterCategory;
+  const scope = historyScope();
+  refreshHistoryMonthOptions();
   const filtered = getFilteredExpenses();
 
-  // Podsumowanie wyników wyszukiwania
+  // Podsumowanie wyników (przy filtrach lub widoku wszystkich miesięcy)
   const summary = $('#searchSummary');
   if (summary) {
-    if (hasFilter) {
+    if (hasFilter || scope === 'all') {
       const total = filtered.reduce((s, x) => s + (Number(x.e.amount) || 0), 0);
       summary.hidden = false;
       summary.textContent = `Znaleziono: ${filtered.length} ${plural(filtered.length, 'pozycja', 'pozycje', 'pozycji')} · suma ${fmt(total)}`
-        + (searchAllMonths ? ' · wszystkie miesiące' : ' · ten miesiąc');
+        + (scope === 'all' ? ' · wszystkie miesiące' : ` · ${labelFromKey(scope)}`);
     } else {
       summary.hidden = true;
     }
@@ -367,12 +402,11 @@ function renderList() {
   if (!filtered.length) {
     container.innerHTML = `<div class="empty-hint">${hasFilter
       ? 'Brak wyników dla podanych filtrów.'
-      : 'Brak wydatków. Dodaj pierwszy w formularzu powyżej.'}</div>`;
+      : 'Brak wydatków w tym zakresie.'}</div>`;
     return;
   }
 
-  const crossMonths = searchAllMonths && hasFilter;
-  if (listView === 'flat' || crossMonths) {
+  if (listView === 'flat') {
     const sorted = [...filtered].sort((a, b) => (b.e.date || '').localeCompare(a.e.date || ''));
     container.innerHTML = sorted.map(x => itemRow(x.e, x.key)).join('');
   } else {
@@ -884,7 +918,9 @@ function createDropdown(root, onChange) {
 }
 
 let categoryDropdown = null;
-let filterCatDropdown = null; // filtr kategorii w Historii
+let filterCatDropdown = null;   // filtr kategorii w Historii
+let filterMonthDropdown = null; // wybór miesiąca w Historii
+let historyMonthByLabel = new Map(); // etykieta -> klucz miesiąca
 
 // ---------- Własny date picker (kalendarz w motywie aplikacji) ----------
 function createDatePicker(root) {
@@ -1161,20 +1197,15 @@ function showView(name) {
 }
 
 function bindEvents() {
-  $('#prevMonth').onclick = () => { currentKey = prevKey(currentKey); dailyRange = null; dailyDay = null; resetIncomeForm(); syncFormDate(); render(); };
-  $('#nextMonth').onclick = () => { currentKey = nextKey(currentKey); dailyRange = null; dailyDay = null; resetIncomeForm(); syncFormDate(); render(); };
+  $('#prevMonth').onclick = () => { currentKey = prevKey(currentKey); dailyRange = null; dailyDay = null; historyMonth = null; resetIncomeForm(); syncFormDate(); render(); };
+  $('#nextMonth').onclick = () => { currentKey = nextKey(currentKey); dailyRange = null; dailyDay = null; historyMonth = null; resetIncomeForm(); syncFormDate(); render(); };
 
   // Inne przychody
   $('#incomeForm').addEventListener('submit', submitIncome);
   $('#incCancel').onclick = resetIncomeForm;
 
-  // Wyszukiwarka w Historii
+  // Wyszukiwarka w Historii (wybór miesiąca obsługuje dropdown #filterMonth)
   $('#searchInput').addEventListener('input', (e) => { searchQuery = e.target.value; renderList(); });
-  $('#allMonthsChip').onclick = () => {
-    searchAllMonths = !searchAllMonths;
-    $('#allMonthsChip').classList.toggle('active', searchAllMonths);
-    renderList();
-  };
 
   // Autouzupełnianie nazw wydatków
   const expNameEl = $('#expName');
