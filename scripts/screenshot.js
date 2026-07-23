@@ -22,7 +22,8 @@ const START_APP = `(() => {
     ];
     if (o < 3) exp.push({id:k+'e',category:'Rozrywka',name:'Kino i Netflix',amount:90 + o*12,date:k+'-14'});
     if (o === 0) exp.push({id:k+'f',category:'Zdrowie',name:'Apteka',amount:75.99,date:k+'-15'});
-    months[k] = { salary: 5200, expenses: exp };
+    const incomes = o === 0 ? [{ id: 'inc1', name: 'Premia kwartalna', amount: 800 }] : [];
+    months[k] = { salary: 5200, incomes, expenses: exp };
   }
   const sample = { version:1, initialBalance:2000,
     categories:['Jedzenie','Transport','Rachunki','Rozrywka','Zdrowie','Ubrania','Inne'],
@@ -59,6 +60,10 @@ app.whenReady().then(() => {
     await run(START_APP);
     await wait(700);
     await shot('view-miesiac.png');                            // widok: Miesiąc
+
+    await run(`window.scrollTo(0, document.body.scrollHeight);`);
+    await wait(400); await shot('incomes.png');                // panel Inne przychody
+    await run(`window.scrollTo(0, 0);`);
 
     await run(`document.querySelector('#expDate .dp-trigger').click();`);
     await wait(400); await shot('datepicker.png');             // kalendarz otwarty

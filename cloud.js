@@ -124,9 +124,13 @@ function profileOf(d) {
   };
 }
 function monthOf(m) {
-  return { salary: Number(m && m.salary) || 0, expenses: (m && m.expenses) || [] };
+  return {
+    salary: Number(m && m.salary) || 0,
+    incomes: (m && m.incomes) || [],
+    expenses: (m && m.expenses) || []
+  };
 }
-function isEmptyMonth(mo) { return mo.salary === 0 && mo.expenses.length === 0; }
+function isEmptyMonth(mo) { return mo.salary === 0 && mo.incomes.length === 0 && mo.expenses.length === 0; }
 // Do porównań pomijamy puste miesiące (tworzone lokalnie przy przeglądaniu).
 function stripForCompare(d) {
   const c = { ...profileOf(d), months: {} };

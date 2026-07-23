@@ -87,7 +87,7 @@
             <input type="number" id="salary" step="0.01" placeholder="0,00" />
             <span class="unit">zł</span>
           </div>
-          <p class="card-hint">Wpisz kwotę wynagrodzenia</p>
+          <p class="card-hint" id="salaryHint">Wpisz kwotę wynagrodzenia</p>
         </div>
 
         <div class="card accent-red">
@@ -103,12 +103,12 @@
         </div>
       </section>
 
-      <!-- Wpływ na pensję / oszczędności -->
+      <!-- Wpływ na przychody / oszczędności -->
       <section class="panel">
-        <h2>Wpływ na pensję</h2>
+        <h2>Wpływ na przychody</h2>
         <div class="impact">
           <div class="impact-row">
-            <span>Wydano z pensji</span>
+            <span>Wydano z przychodów</span>
             <span id="spentPct">0%</span>
           </div>
           <div class="bar">
@@ -162,6 +162,19 @@
             <button type="submit" class="primary-btn">+ Dodaj wydatek</button>
           </form>
       </section>
+
+      <!-- Inne przychody -->
+      <section class="panel">
+        <h2>Inne przychody</h2>
+        <p class="settings-line">Premie, zwroty, sprzedaż — wszystko poza pensją. Wliczają się do salda i analiz.</p>
+        <form id="incomeForm" class="income-form">
+          <input type="text" id="incName" placeholder="np. Premia, zwrot, sprzedaż" />
+          <input type="number" id="incAmount" step="0.01" placeholder="0,00" />
+          <button type="submit" class="primary-btn" id="incSubmit">Dodaj</button>
+          <button type="button" id="incCancel" class="ghost-btn" hidden>Anuluj</button>
+        </form>
+        <div id="incomeList" class="income-list"></div>
+      </section>
      </section>
 
      <!-- ============ WIDOK: ANALIZA ============ -->
@@ -204,7 +217,7 @@
           <h2>Porównanie miesięcy</h2>
           <div id="monthlyChart" class="monthly-chart"></div>
           <div class="chart-legend">
-            <div><span class="dot dot-salary"></span> Pensja</div>
+            <div><span class="dot dot-salary"></span> Przychody</div>
             <div><span class="dot dot-spent"></span> Wydatki</div>
             <div><span class="dot dot-saved"></span> Oszczędności</div>
           </div>

@@ -10,6 +10,7 @@ let editDatePicker = null;  // kalendarz w oknie edycji
 let editCategoryDropdown = null; // dropdown kategorii w oknie edycji
 let editingExpense = null;  // { id, key } aktualnie edytowany wydatek
 let editingCat = null;      // kategoria w trybie zmiany nazwy
+let editingIncomeId = null; // edytowany przychód (formularz Inne przychody)
 
 const MONTH_NAMES = [
   'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
@@ -58,20 +59,27 @@ function toast(msg) {
 // ---------- Dostęp do danych miesiąca ----------
 function getMonth(key) {
   if (!data.months[key]) {
-    data.months[key] = { salary: 0, expenses: [] };
+    data.months[key] = { salary: 0, incomes: [], expenses: [] };
   }
   return data.months[key];
 }
 
+// Suma przychodów miesiąca = pensja + wszystkie dodatkowe przychody.
+function monthIncome(m) {
+  if (!m) return 0;
+  const extra = (m.incomes || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  return (Number(m.salary) || 0) + extra;
+}
+
 // Saldo na początek danego miesiąca = kwota początkowa (ustawiona raz przy rejestracji)
-// powiększona o wynik (pensja − wydatki) wszystkich wcześniejszych miesięcy.
+// powiększona o wynik (przychody − wydatki) wszystkich wcześniejszych miesięcy.
 function runningStart(key) {
   let bal = Number(data.initialBalance) || 0;
   const keys = Object.keys(data.months).filter((k) => k < key).sort();
   for (const k of keys) {
     const m = data.months[k];
     const spent = (m.expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    bal += (Number(m.salary) || 0) - spent;
+    bal += monthIncome(m) - spent;
   }
   return bal;
 }
@@ -79,10 +87,11 @@ function runningStart(key) {
 function monthTotals(key) {
   const m = data.months[key];
   const start = runningStart(key);
-  if (!m) return { spent: 0, salary: 0, start, saved: 0, balance: start };
+  if (!m) return { spent: 0, salary: 0, income: 0, start, saved: 0, balance: start };
   const spent = m.expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const salary = Number(m.salary) || 0;
-  return { spent, salary, start, saved: salary - spent, balance: start + salary - spent };
+  const income = monthIncome(m);
+  return { spent, salary, income, start, saved: income - spent, balance: start + income - spent };
 }
 
 // Zapis danych na dysk (z niewielkim opóźnieniem przy szybkim wpisywaniu)
@@ -102,9 +111,18 @@ function render() {
   // Etykieta miesiąca
   $('#monthLabel').textContent = labelFromKey(currentKey);
 
-  // Pensja – jedyne edytowalne pole (nie nadpisuj podczas edycji)
+  // Pensja – edytowalne pole (nie nadpisuj podczas edycji)
   const sal = $('#salary');
   if (document.activeElement !== sal) sal.value = m.salary || '';
+
+  // Podpowiedź pod pensją: dodatkowe przychody i suma
+  const sh = $('#salaryHint');
+  if (sh) {
+    const extra = (m.incomes || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    sh.textContent = extra > 0
+      ? `+ inne przychody: ${fmt(extra)} · łącznie ${fmt(t.income)}`
+      : 'Wpisz kwotę wynagrodzenia';
+  }
 
   // Stan konta na start = saldo przeniesione z poprzednich miesięcy (liczone automatycznie)
   $('#startBalance').textContent = fmt(t.start);
@@ -125,6 +143,7 @@ function render() {
   if (ib) ib.textContent = fmt(data.initialBalance);
 
   renderImpact(t);
+  renderIncomes();
   renderDonut(m);
   renderList(m);
   renderMonthly();
@@ -141,7 +160,7 @@ function plural(n, one, few, many) {
 }
 
 function renderImpact(t) {
-  const pct = t.salary > 0 ? Math.min(100, (t.spent / t.salary) * 100) : (t.spent > 0 ? 100 : 0);
+  const pct = t.income > 0 ? Math.min(100, (t.spent / t.income) * 100) : (t.spent > 0 ? 100 : 0);
   $('#spentPct').textContent = Math.round(pct) + '%';
   const bar = $('#spentBar');
   bar.style.width = pct + '%';
@@ -152,10 +171,78 @@ function renderImpact(t) {
 
   $('#impSpent').textContent = fmt(t.spent);
   $('#impSaved').textContent = fmt(t.saved);
-  const rate = t.salary > 0 ? (t.saved / t.salary) * 100 : 0;
+  const rate = t.income > 0 ? (t.saved / t.income) * 100 : 0;
   const rateEl = $('#savingRate');
   rateEl.textContent = Math.round(rate) + '%';
   rateEl.style.color = rate >= 0 ? 'var(--green)' : 'var(--red)';
+}
+
+// ---------- Inne przychody (formularz + lista) ----------
+function renderIncomes() {
+  const m = getMonth(currentKey);
+  const list = $('#incomeList');
+  const incomes = m.incomes || [];
+  if (!incomes.length) {
+    list.innerHTML = '<div class="empty-hint">Brak dodatkowych przychodów w tym miesiącu.</div>';
+  } else {
+    list.innerHTML = incomes.map(i => `<div class="inc-item">
+      <span class="inc-name">${escapeHtml(i.name || '(bez nazwy)')}</span>
+      <span class="inc-right">
+        <span class="inc-amount">+${fmt(i.amount)}</span>
+        <button class="edit-btn" data-id="${i.id}" title="Edytuj" aria-label="Edytuj">&#9998;</button>
+        <button class="del-btn" data-id="${i.id}" title="Usuń" aria-label="Usuń">&#10005;</button>
+      </span>
+    </div>`).join('');
+  }
+  list.querySelectorAll('.del-btn').forEach(b => { b.onclick = () => deleteIncome(b.dataset.id); });
+  list.querySelectorAll('.edit-btn').forEach(b => { b.onclick = () => startEditIncome(b.dataset.id); });
+}
+function startEditIncome(id) {
+  const i = (getMonth(currentKey).incomes || []).find(x => x.id === id);
+  if (!i) return;
+  editingIncomeId = id;
+  $('#incName').value = i.name || '';
+  $('#incAmount').value = i.amount;
+  $('#incSubmit').textContent = 'Zapisz';
+  $('#incCancel').hidden = false;
+  $('#incName').focus();
+}
+function resetIncomeForm() {
+  editingIncomeId = null;
+  $('#incName').value = '';
+  $('#incAmount').value = '';
+  $('#incSubmit').textContent = 'Dodaj';
+  $('#incCancel').hidden = true;
+}
+function submitIncome(ev) {
+  ev.preventDefault();
+  const name = $('#incName').value.trim();
+  const amount = parseFloat($('#incAmount').value);
+  if (isNaN(amount) || amount <= 0) { toast('Podaj poprawną kwotę'); return; }
+  const m = getMonth(currentKey);
+  if (!m.incomes) m.incomes = [];
+  if (editingIncomeId) {
+    const i = m.incomes.find(x => x.id === editingIncomeId);
+    if (i) { i.name = name; i.amount = Number(amount.toFixed(2)); }
+    toast('Zapisano przychód');
+  } else {
+    m.incomes.push({
+      id: 'i' + Date.now() + Math.floor(performance.now() * 1000 % 1000),
+      name, amount: Number(amount.toFixed(2))
+    });
+    toast('Dodano przychód');
+  }
+  resetIncomeForm();
+  saveData(true);
+  render();
+}
+function deleteIncome(id) {
+  const m = getMonth(currentKey);
+  m.incomes = (m.incomes || []).filter(x => x.id !== id);
+  if (editingIncomeId === id) resetIncomeForm();
+  saveData(true);
+  render();
+  toast('Usunięto przychód');
 }
 
 // ---------- Wykres kołowy (donut) w SVG ----------
@@ -320,18 +407,18 @@ function renderMonthly() {
   for (let i = 0; i < 6; i++) { keys.unshift(k); k = prevKey(k); }
 
   const rows = keys.map(key => ({ key, ...monthTotals(key) }));
-  const max = Math.max(1, ...rows.map(r => Math.max(r.salary, r.spent, Math.abs(r.saved))));
+  const max = Math.max(1, ...rows.map(r => Math.max(r.income, r.spent, Math.abs(r.saved))));
   const H = 170;
 
   chart.innerHTML = rows.map(r => {
-    const hSal = Math.round((r.salary / max) * H);
+    const hSal = Math.round((r.income / max) * H);
     const hSpent = Math.round((r.spent / max) * H);
     const hSaved = Math.round((Math.max(0, r.saved) / max) * H);
     const [, mm] = r.key.split('-').map(Number);
     const isCurrent = r.key === currentKey;
     return `<div class="mc-col ${isCurrent ? 'current' : ''}">
       <div class="mc-bars">
-        <div class="mc-bar b-salary" style="height:${hSal}px" title="Pensja: ${fmt(r.salary)}"></div>
+        <div class="mc-bar b-salary" style="height:${hSal}px" title="Przychody: ${fmt(r.income)}"></div>
         <div class="mc-bar b-spent" style="height:${hSpent}px" title="Wydatki: ${fmt(r.spent)}"></div>
         <div class="mc-bar b-saved" style="height:${hSaved}px" title="Oszczędności: ${fmt(r.saved)}"></div>
       </div>
@@ -392,7 +479,7 @@ function renderKPI() {
   const byDay = monthExpensesByDay(currentKey);
   let topDay = null;
   for (const d in byDay) if (topDay === null || byDay[d].total > byDay[topDay].total) topDay = d;
-  const rate = t.salary > 0 ? Math.round((t.saved / t.salary) * 100) : null;
+  const rate = t.income > 0 ? Math.round((t.saved / t.income) * 100) : null;
   const pk = prevKey(currentKey);
   const prevSpent = monthTotals(pk).spent;
   const momPct = prevSpent > 0 ? ((t.spent - prevSpent) / prevSpent) * 100 : null;
@@ -413,8 +500,8 @@ function renderInsights() {
   const el = $('#insights');
   const t = monthTotals(currentKey);
   const m = getMonth(currentKey);
-  if (t.spent === 0 && t.salary === 0) {
-    el.innerHTML = '<div class="insight">Dodaj pensję i wydatki, aby zobaczyć wnioski i prognozy.</div>';
+  if (t.spent === 0 && t.income === 0) {
+    el.innerHTML = '<div class="insight">Dodaj przychody i wydatki, aby zobaczyć wnioski.</div>';
     return;
   }
   const lines = [];
@@ -440,10 +527,10 @@ function renderInsights() {
     const [, mo] = currentKey.split('-');
     lines.push(`Najdroższy dzień to <b>${String(topDay).padStart(2, '0')}.${mo}</b> — ${fmt(byDay[topDay].total)}.`);
   }
-  if (t.salary > 0) {
-    const rate = Math.round((t.saved / t.salary) * 100);
+  if (t.income > 0) {
+    const rate = Math.round((t.saved / t.income) * 100);
     lines.push(rate >= 0
-      ? `Odkładasz <b>${rate}%</b> pensji.`
+      ? `Odkładasz <b>${rate}%</b> przychodów.`
       : `Uwaga: w tym miesiącu wydajesz więcej niż zarabiasz (${rate}%).`);
   }
   el.innerHTML = lines.map(l => `<div class="insight">${l}</div>`).join('');
@@ -942,8 +1029,12 @@ function showView(name) {
 }
 
 function bindEvents() {
-  $('#prevMonth').onclick = () => { currentKey = prevKey(currentKey); dailyRange = null; dailyDay = null; syncFormDate(); render(); };
-  $('#nextMonth').onclick = () => { currentKey = nextKey(currentKey); dailyRange = null; dailyDay = null; syncFormDate(); render(); };
+  $('#prevMonth').onclick = () => { currentKey = prevKey(currentKey); dailyRange = null; dailyDay = null; resetIncomeForm(); syncFormDate(); render(); };
+  $('#nextMonth').onclick = () => { currentKey = nextKey(currentKey); dailyRange = null; dailyDay = null; resetIncomeForm(); syncFormDate(); render(); };
+
+  // Inne przychody
+  $('#incomeForm').addEventListener('submit', submitIncome);
+  $('#incCancel').onclick = resetIncomeForm;
 
   // Rozbicie dzienne: wybór zakresu i klik na dzień
   $('#dailyChips').addEventListener('click', (e) => {
