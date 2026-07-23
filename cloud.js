@@ -323,14 +323,15 @@ onAuthStateChanged(auth, async (user) => {
     const d = s.data();
     if (d.json) return; // stary format (w trakcie migracji) — pomiń
     remoteProfile = profileOf(d);
-    applyRemoteIfChanged();
+    // Nie nadpisuj lokalnego stanu, gdy nasze własne zapisy są jeszcze w drodze
+    if (!s.metadata.hasPendingWrites) applyRemoteIfChanged();
   });
   unsubMonths = onSnapshot(monthsColRef, (qs) => {
     qs.docChanges().forEach((ch) => {
       if (ch.type === 'removed') delete remoteMonths[ch.doc.id];
       else remoteMonths[ch.doc.id] = monthOf(ch.doc.data());
     });
-    applyRemoteIfChanged();
+    if (!qs.metadata.hasPendingWrites) applyRemoteIfChanged();
   });
 });
 
