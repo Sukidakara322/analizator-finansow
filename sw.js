@@ -1,5 +1,8 @@
-// Service worker — pozwala aplikacji działać offline (po pierwszym wczytaniu).
-const CACHE = 'analizator-v12';
+// Service worker — praca offline + zawsze świeża wersja po wdrożeniach.
+// Strategia: pliki aplikacji serwowane z cache (szybki start), a w tle zawsze
+// dociągana jest świeża wersja z sieci (stale-while-revalidate). Dzięki temu
+// po każdym wdrożeniu wystarczy ponowne otwarcie aplikacji.
+const CACHE = 'analizator-v13';
 const ASSETS = [
   './',
   './index.html',
@@ -12,10 +15,12 @@ const ASSETS = [
   './icons/icon-512.png'
 ];
 
-// Instalacja: zapisz pliki aplikacji do pamięci podręcznej.
+// Instalacja: pobierz pliki ZAWSZE świeże z sieci (z pominięciem cache HTTP przeglądarki).
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then((cache) => cache.addAll(ASSETS.map((u) => new Request(u, { cache: 'no-cache' }))))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -28,27 +33,41 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Pobieranie:
-//  • pliki aplikacji i biblioteka Firebase (gstatic) -> najpierw cache, potem sieć (i zapisz do cache),
-//  • wywołania do googleapis (baza/logowanie) -> zawsze przez sieć; offline obsługuje pamięć Firestore.
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
-
   const url = new URL(req.url);
-  const cacheable = url.origin === self.location.origin || url.origin === 'https://www.gstatic.com';
-  if (!cacheable) return; // googleapis itp. — nie przechwytujemy
 
-  event.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached) return cached;
-      return fetch(req).then((resp) => {
+  // Pliki aplikacji: z cache od razu + odświeżenie w tle (zawsze aktualne przy następnym otwarciu).
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.open(CACHE).then(async (cache) => {
+        const cached = await cache.match(req);
+        const network = fetch(req, { cache: 'no-cache' })
+          .then((resp) => {
+            if (resp && resp.status === 200) cache.put(req, resp.clone());
+            return resp;
+          })
+          .catch(() => null);
+        if (cached) return cached;
+        const fresh = await network;
+        return fresh || cache.match('./index.html');
+      })
+    );
+    return;
+  }
+
+  // Biblioteka Firebase (gstatic, adresy wersjonowane): cache-first.
+  if (url.origin === 'https://www.gstatic.com') {
+    event.respondWith(
+      caches.match(req).then((cached) => cached || fetch(req).then((resp) => {
         if (resp && resp.status === 200) {
           const copy = resp.clone();
           caches.open(CACHE).then((c) => c.put(req, copy));
         }
         return resp;
-      }).catch(() => caches.match('./index.html'));
-    })
-  );
+      }))
+    );
+  }
+  // googleapis (baza/logowanie) — zawsze przez sieć; offline obsługuje pamięć Firestore.
 });
