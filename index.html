@@ -142,7 +142,10 @@
             </div>
             <div class="field">
               <label>Nazwa / opis</label>
-              <input type="text" id="expName" placeholder="np. Zakupy w Biedronce" />
+              <div class="suggest-wrap">
+                <input type="text" id="expName" placeholder="np. Zakupy w Biedronce" autocomplete="off" />
+                <div class="suggest-panel" id="nameSuggest" hidden></div>
+              </div>
             </div>
             <div class="field-inline">
               <div class="field">
@@ -235,6 +238,18 @@
               <button class="toggle-btn" data-view="flat">Chronologicznie</button>
             </div>
           </div>
+          <div class="filter-bar">
+            <input type="text" id="searchInput" placeholder="Szukaj po nazwie lub kategorii…" autocomplete="off" />
+            <div class="dropdown filter-cat" id="filterCat">
+              <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false">
+                <span class="dd-label">Wszystkie kategorie</span>
+                <span class="dd-arrow"></span>
+              </button>
+              <div class="dd-panel" role="listbox" hidden></div>
+            </div>
+            <button type="button" class="chip" id="allMonthsChip" title="Szukaj we wszystkich miesiącach">Wszystkie miesiące</button>
+          </div>
+          <div class="search-summary" id="searchSummary" hidden></div>
           <div id="expenseList" class="expense-list"></div>
         </section>
      </section>

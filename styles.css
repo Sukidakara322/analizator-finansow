@@ -295,6 +295,31 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cur
 }
 .toggle-btn.active { background: var(--grad); color: #fff; box-shadow: var(--glow); }
 
+/* Pasek wyszukiwania w Historii */
+.filter-bar { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.filter-bar input { flex: 2; min-width: 180px; }
+.filter-bar .filter-cat { flex: 1; min-width: 180px; width: auto; }
+.filter-bar .chip { flex-shrink: 0; align-self: center; }
+.search-summary { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+
+/* Podpowiedzi nazw wydatków */
+.suggest-wrap { position: relative; }
+.suggest-panel {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 90;
+  background: #1b1430; border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow), var(--glow); padding: 6px; max-height: 260px; overflow-y: auto;
+  animation: ddIn 0.14s ease;
+}
+.suggest-panel[hidden] { display: none; }
+.suggest-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  transition: background 0.12s;
+}
+.suggest-item:hover { background: var(--grad-soft); }
+.sg-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-meta { color: var(--muted); font-size: 11px; white-space: nowrap; }
+
 .expense-list { display: flex; flex-direction: column; gap: 8px; }
 .cat-group { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .cat-group-head {
@@ -466,10 +491,15 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cur
 
 /* ---------- Powiadomienie ---------- */
 .toast {
-  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-  background: var(--panel-2); color: var(--text); padding: 12px 20px; border-radius: 10px;
+  position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
+  background: var(--panel-2); color: var(--text); padding: 12px 20px; border-radius: 12px;
   border: 1px solid var(--border); box-shadow: var(--shadow); z-index: 200; font-size: 13px;
   animation: toastIn 0.2s ease;
+  display: flex; align-items: center; gap: 14px; max-width: 92vw;
+}
+.toast-action {
+  background: var(--grad); color: #fff; border: none; padding: 7px 16px; border-radius: 9px;
+  font-size: 12px; font-weight: 700; cursor: pointer; flex-shrink: 0; box-shadow: var(--glow);
 }
 .toast[hidden] { display: none; }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }

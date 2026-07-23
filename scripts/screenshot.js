@@ -37,7 +37,8 @@ const START_APP = `(() => {
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
 app.whenReady().then(() => {
-  const win = new BrowserWindow({ show: false, width: 1240, height: 1300, webPreferences: { partition: 'shots-fresh' } });
+  // backgroundThrottling:false — ukryte okno musi renderować na bieżąco, inaczej capturePage może oddać starą klatkę
+  const win = new BrowserWindow({ show: false, width: 1240, height: 1300, webPreferences: { partition: 'shots-fresh', backgroundThrottling: false } });
 
   async function shot(name) {
     const img = await win.webContents.capturePage();
@@ -65,13 +66,24 @@ app.whenReady().then(() => {
     await wait(400); await shot('incomes.png');                // panel Inne przychody
     await run(`window.scrollTo(0, 0);`);
 
-    await run(`document.querySelector('#expDate .dp-trigger').click();`);
-    await wait(400); await shot('datepicker.png');             // kalendarz otwarty
-    await run(`document.querySelector('#expDate .dp-trigger').click();`);
+    await run(`(function(){ var i=document.getElementById('expName'); i.value='Bi'; i.dispatchEvent(new Event('input')); })();`);
+    await wait(300); await shot('suggest.png');                // podpowiedzi nazw
+    await run(`document.getElementById('nameSuggest').hidden = true; document.getElementById('expName').value='';`);
 
     const nav = (v) => run(`document.querySelector('.nav-btn[data-view=${v}]').click();`);
     await nav('historia'); await wait(400); await shot('view-historia.png');
-    await run(`document.querySelector('.edit-btn').click();`);
+
+    await run(`(function(){ var s=document.getElementById('searchInput'); s.value='lidl'; s.dispatchEvent(new Event('input')); document.getElementById('allMonthsChip').click(); })();`);
+    await wait(400); await shot('search.png');                 // wyniki wyszukiwania (wszystkie miesiące)
+    await run(`(function(){ var s=document.getElementById('searchInput'); s.value=''; s.dispatchEvent(new Event('input')); document.getElementById('allMonthsChip').click(); })();`);
+    await wait(300);
+
+    await run(`document.querySelector('#expenseList .del-btn').click();`);
+    await wait(300); await shot('undo.png');                   // toast z przyciskiem Cofnij
+    await run(`document.querySelector('.toast-action').click();`);
+    await wait(300);
+
+    await run(`document.querySelector('#expenseList .edit-btn').click();`);
     await wait(400); await shot('edit-modal.png');             // okno edycji wydatku
     await run(`document.getElementById('editModal').hidden = true;`);
 

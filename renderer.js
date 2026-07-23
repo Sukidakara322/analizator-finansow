@@ -11,6 +11,10 @@ let editCategoryDropdown = null; // dropdown kategorii w oknie edycji
 let editingExpense = null;  // { id, key } aktualnie edytowany wydatek
 let editingCat = null;      // kategoria w trybie zmiany nazwy
 let editingIncomeId = null; // edytowany przychód (formularz Inne przychody)
+let searchQuery = '';       // wyszukiwarka w Historii
+let filterCategory = null;  // filtr kategorii w Historii (null = wszystkie)
+let searchAllMonths = false;// szukanie we wszystkich miesiącach
+const ALL_CATS = 'Wszystkie kategorie';
 
 const MONTH_NAMES = [
   'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
@@ -48,13 +52,25 @@ function colorFor(index) {
 }
 
 let toastTimer = null;
-function toast(msg) {
+function showToast(msg, actionLabel, actionFn) {
   const t = $('#toast');
-  t.textContent = msg;
+  t.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = msg;
+  t.appendChild(span);
+  if (actionLabel && actionFn) {
+    const b = document.createElement('button');
+    b.className = 'toast-action';
+    b.textContent = actionLabel;
+    b.onclick = () => { clearTimeout(toastTimer); t.hidden = true; actionFn(); };
+    t.appendChild(b);
+  }
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 2500);
+  toastTimer = setTimeout(() => { t.hidden = true; }, actionLabel ? 6000 : 2500);
 }
+function toast(msg) { showToast(msg); }
+function toastAction(msg, label, fn) { showToast(msg, label, fn); }
 
 // ---------- Dostęp do danych miesiąca ----------
 function getMonth(key) {
@@ -145,7 +161,7 @@ function render() {
   renderImpact(t);
   renderIncomes();
   renderDonut(m);
-  renderList(m);
+  renderList();
   renderMonthly();
   renderAnaliza();
 }
@@ -237,12 +253,22 @@ function submitIncome(ev) {
   render();
 }
 function deleteIncome(id) {
-  const m = getMonth(currentKey);
-  m.incomes = (m.incomes || []).filter(x => x.id !== id);
+  const k = currentKey;
+  const m = getMonth(k);
+  const idx = (m.incomes || []).findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const [removed] = m.incomes.splice(idx, 1);
   if (editingIncomeId === id) resetIncomeForm();
   saveData(true);
   render();
-  toast('Usunięto przychód');
+  toastAction('Usunięto przychód', 'Cofnij', () => {
+    const mm = getMonth(k);
+    if (!mm.incomes) mm.incomes = [];
+    mm.incomes.splice(Math.min(idx, mm.incomes.length), 0, removed);
+    saveData(true);
+    render();
+    toast('Przywrócono przychód');
+  });
 }
 
 // ---------- Wykres kołowy (donut) w SVG ----------
@@ -299,43 +325,87 @@ function renderDonut(m) {
 }
 
 // ---------- Lista wydatków ----------
-function renderList(m) {
+// Wydatki po zastosowaniu filtrów wyszukiwarki: [{ e, key }].
+function getFilteredExpenses() {
+  const q = searchQuery.trim().toLowerCase();
+  const hasFilter = q.length > 0 || !!filterCategory;
+  const keys = (searchAllMonths && hasFilter)
+    ? Object.keys(data.months).sort().reverse()
+    : [currentKey];
+  const out = [];
+  for (const k of keys) {
+    const m = data.months[k];
+    if (!m) continue;
+    for (const e of (m.expenses || [])) {
+      if (filterCategory && e.category !== filterCategory) continue;
+      if (q && !((e.name || '').toLowerCase().includes(q) || (e.category || '').toLowerCase().includes(q))) continue;
+      out.push({ e, key: k });
+    }
+  }
+  return out;
+}
+
+function renderList() {
   const container = $('#expenseList');
-  if (m.expenses.length === 0) {
-    container.innerHTML = '<div class="empty-hint">Brak wydatków. Dodaj pierwszy w formularzu powyżej.</div>';
+  const q = searchQuery.trim();
+  const hasFilter = q.length > 0 || !!filterCategory;
+  const filtered = getFilteredExpenses();
+
+  // Podsumowanie wyników wyszukiwania
+  const summary = $('#searchSummary');
+  if (summary) {
+    if (hasFilter) {
+      const total = filtered.reduce((s, x) => s + (Number(x.e.amount) || 0), 0);
+      summary.hidden = false;
+      summary.textContent = `Znaleziono: ${filtered.length} ${plural(filtered.length, 'pozycja', 'pozycje', 'pozycji')} · suma ${fmt(total)}`
+        + (searchAllMonths ? ' · wszystkie miesiące' : ' · ten miesiąc');
+    } else {
+      summary.hidden = true;
+    }
+  }
+
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty-hint">${hasFilter
+      ? 'Brak wyników dla podanych filtrów.'
+      : 'Brak wydatków. Dodaj pierwszy w formularzu powyżej.'}</div>`;
     return;
   }
 
-  if (listView === 'flat') {
-    const sorted = [...m.expenses].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    container.innerHTML = sorted.map(itemRow).join('');
+  const crossMonths = searchAllMonths && hasFilter;
+  if (listView === 'flat' || crossMonths) {
+    const sorted = [...filtered].sort((a, b) => (b.e.date || '').localeCompare(a.e.date || ''));
+    container.innerHTML = sorted.map(x => itemRow(x.e, x.key)).join('');
   } else {
-    const breakdown = categoryBreakdown(m);
-    container.innerHTML = breakdown.map((b, i) => {
-      const items = m.expenses
-        .filter(e => e.category === b.name)
-        .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    // Grupowanie wg kategorii w obrębie przefiltrowanego zbioru
+    const byCat = {};
+    filtered.forEach(x => { (byCat[x.e.category] = byCat[x.e.category] || []).push(x); });
+    const groups = Object.entries(byCat)
+      .map(([name, items]) => ({ name, items, total: items.reduce((s, x) => s + (Number(x.e.amount) || 0), 0) }))
+      .sort((a, b) => b.total - a.total);
+    container.innerHTML = groups.map((g, i) => {
+      const items = g.items.sort((a, b) => (b.e.date || '').localeCompare(a.e.date || ''));
       return `<div class="cat-group">
         <div class="cat-group-head">
-          <div class="cg-left"><span class="dot" style="background:${colorFor(i)}"></span>${escapeHtml(b.name)}
+          <div class="cg-left"><span class="dot" style="background:${colorFor(i)}"></span>${escapeHtml(g.name)}
             <span class="tag">${items.length} ${plural(items.length, 'pozycja', 'pozycje', 'pozycji')}</span></div>
-          <div class="cg-total">${fmt(b.value)}</div>
+          <div class="cg-total">${fmt(g.total)}</div>
         </div>
-        <div class="cat-group-items">${items.map(itemRow).join('')}</div>
+        <div class="cat-group-items">${items.map(x => itemRow(x.e, x.key)).join('')}</div>
       </div>`;
     }).join('');
   }
 
-  // Podpięcie usuwania i edycji
+  // Podpięcie usuwania i edycji (z kluczem miesiąca — działa też między miesiącami)
   container.querySelectorAll('.del-btn').forEach(btn => {
-    btn.onclick = () => deleteExpense(btn.dataset.id);
+    btn.onclick = () => deleteExpense(btn.dataset.id, btn.dataset.key);
   });
   container.querySelectorAll('.edit-btn').forEach(btn => {
-    btn.onclick = () => openEditModal(btn.dataset.id);
+    btn.onclick = () => openEditModal(btn.dataset.id, btn.dataset.key);
   });
 }
 
-function itemRow(e) {
+function itemRow(e, key) {
+  const k = key || currentKey;
   const dateStr = e.date ? new Date(e.date + 'T00:00:00').toLocaleDateString('pl-PL') : '';
   return `<div class="exp-item">
     <div class="ei-left">
@@ -344,24 +414,58 @@ function itemRow(e) {
     </div>
     <div class="ei-right">
       <span class="ei-amount">${fmt(e.amount)}</span>
-      <button class="edit-btn" data-id="${e.id}" title="Edytuj" aria-label="Edytuj">&#9998;</button>
-      <button class="del-btn" data-id="${e.id}" title="Usuń" aria-label="Usuń">&#10005;</button>
+      <button class="edit-btn" data-id="${e.id}" data-key="${k}" title="Edytuj" aria-label="Edytuj">&#9998;</button>
+      <button class="del-btn" data-id="${e.id}" data-key="${k}" title="Usuń" aria-label="Usuń">&#10005;</button>
     </div>
   </div>`;
 }
 
+// ---------- Autouzupełnianie nazw wydatków (z historii) ----------
+// Zwraca do 6 pasujących nazw z całej historii; dla każdej — ostatnią kategorię i kwotę.
+function nameSuggestions(q) {
+  const map = new Map();
+  for (const k of Object.keys(data.months)) {
+    for (const e of (data.months[k].expenses || [])) {
+      const nm = (e.name || '').trim();
+      if (!nm) continue;
+      const lk = nm.toLowerCase();
+      const cand = { name: nm, category: e.category, amount: e.amount, date: e.date || '' };
+      const cur = map.get(lk);
+      if (!cur || cand.date > cur.date) map.set(lk, cand);
+    }
+  }
+  return [...map.values()]
+    .filter(s => s.name.toLowerCase().includes(q))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 6);
+}
+function renderNameSuggest() {
+  const panel = $('#nameSuggest');
+  const q = $('#expName').value.trim().toLowerCase();
+  if (q.length < 2) { panel.hidden = true; return; }
+  const sug = nameSuggestions(q).filter(s => s.name.toLowerCase() !== q);
+  if (!sug.length) { panel.hidden = true; return; }
+  panel.innerHTML = sug.map((s, i) => `<div class="suggest-item" data-i="${i}">
+    <span class="sg-name">${escapeHtml(s.name)}</span>
+    <span class="sg-meta">${escapeHtml(s.category)} · ost. ${fmt(s.amount)}</span>
+  </div>`).join('');
+  panel._items = sug;
+  panel.hidden = false;
+}
+
 // ---------- Edycja wydatku ----------
-function openEditModal(id) {
-  const m = getMonth(currentKey);
-  const e = m.expenses.find(x => x.id === id);
+function openEditModal(id, key) {
+  const k = key || currentKey;
+  const m = data.months[k];
+  const e = m && m.expenses.find(x => x.id === id);
   if (!e) return;
-  editingExpense = { id, key: currentKey };
+  editingExpense = { id, key: k };
   // Jeśli kategoria wpisu została usunięta z listy, nadal pokaż ją jako opcję
   const opts = data.categories.includes(e.category) ? data.categories : [e.category, ...data.categories];
   editCategoryDropdown.setOptions(opts, e.category);
   $('#editName').value = e.name || '';
   $('#editAmount').value = e.amount;
-  editDatePicker.value = e.date || currentKey + '-01';
+  editDatePicker.value = e.date || k + '-01';
   $('#editModal').hidden = false;
 }
 function closeEditModal() {
@@ -711,7 +815,7 @@ function renderCatTrend() {
 
 // ---------- Własny dropdown (wielokrotnego użytku) ----------
 // Zastępuje natywny <select>, żeby całą listę (także rozwiniętą) dało się ostylować.
-function createDropdown(root) {
+function createDropdown(root, onChange) {
   const trigger = root.querySelector('.dd-trigger');
   const labelEl = root.querySelector('.dd-label');
   const panel = root.querySelector('.dd-panel');
@@ -747,7 +851,12 @@ function createDropdown(root) {
     document.removeEventListener('click', onDocClick, true);
     document.removeEventListener('keydown', onKey);
   }
-  function choose(v) { value = v; labelEl.textContent = v != null ? v : '—'; close(); }
+  function choose(v) {
+    value = v;
+    labelEl.textContent = v != null ? v : '—';
+    close();
+    if (onChange) onChange(v);
+  }
   function onDocClick(e) { if (!root.contains(e.target)) close(); }
   function onKey(e) {
     if (e.key === 'Escape') { close(); trigger.focus(); }
@@ -775,6 +884,7 @@ function createDropdown(root) {
 }
 
 let categoryDropdown = null;
+let filterCatDropdown = null; // filtr kategorii w Historii
 
 // ---------- Własny date picker (kalendarz w motywie aplikacji) ----------
 function createDatePicker(root) {
@@ -858,6 +968,17 @@ function renderCategorySelect() {
   if (!categoryDropdown) categoryDropdown = createDropdown($('#expCategory'));
   const prev = categoryDropdown.value;
   categoryDropdown.setOptions(data.categories, data.categories.includes(prev) ? prev : data.categories[0]);
+
+  // Filtr kategorii w Historii (z opcją "Wszystkie kategorie")
+  if (!filterCatDropdown) {
+    filterCatDropdown = createDropdown($('#filterCat'), (v) => {
+      filterCategory = (v === ALL_CATS) ? null : v;
+      renderList();
+    });
+  }
+  const prevF = filterCatDropdown.value;
+  const fOpts = [ALL_CATS, ...data.categories];
+  filterCatDropdown.setOptions(fOpts, fOpts.includes(prevF) ? prevF : ALL_CATS);
 }
 
 function renderCatModalList() {
@@ -962,12 +1083,23 @@ function addExpense(ev) {
   toast(bucketKey !== currentKey ? 'Dodano do: ' + labelFromKey(bucketKey) : 'Dodano wydatek');
 }
 
-function deleteExpense(id) {
-  const m = getMonth(currentKey);
-  m.expenses = m.expenses.filter(e => e.id !== id);
+function deleteExpense(id, key) {
+  const k = key || currentKey;
+  const m = data.months[k];
+  if (!m) return;
+  const idx = m.expenses.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const [removed] = m.expenses.splice(idx, 1);
   saveData(true);
   render();
-  toast('Usunięto wydatek');
+  // Możliwość cofnięcia — wpis wraca na swoje miejsce
+  toastAction('Usunięto wydatek', 'Cofnij', () => {
+    const mm = getMonth(k);
+    mm.expenses.splice(Math.min(idx, mm.expenses.length), 0, removed);
+    saveData(true);
+    render();
+    toast('Przywrócono wydatek');
+  });
 }
 
 function escapeHtml(s) {
@@ -1036,6 +1168,34 @@ function bindEvents() {
   $('#incomeForm').addEventListener('submit', submitIncome);
   $('#incCancel').onclick = resetIncomeForm;
 
+  // Wyszukiwarka w Historii
+  $('#searchInput').addEventListener('input', (e) => { searchQuery = e.target.value; renderList(); });
+  $('#allMonthsChip').onclick = () => {
+    searchAllMonths = !searchAllMonths;
+    $('#allMonthsChip').classList.toggle('active', searchAllMonths);
+    renderList();
+  };
+
+  // Autouzupełnianie nazw wydatków
+  const expNameEl = $('#expName');
+  const suggestPanel = $('#nameSuggest');
+  expNameEl.addEventListener('input', renderNameSuggest);
+  expNameEl.addEventListener('focus', renderNameSuggest);
+  expNameEl.addEventListener('keydown', (e) => { if (e.key === 'Escape') suggestPanel.hidden = true; });
+  suggestPanel.addEventListener('pointerdown', (e) => {
+    const item = e.target.closest('.suggest-item');
+    if (!item || !suggestPanel._items) return;
+    e.preventDefault();
+    const s = suggestPanel._items[Number(item.dataset.i)];
+    expNameEl.value = s.name;
+    if (categoryDropdown && data.categories.includes(s.category)) categoryDropdown.value = s.category;
+    suggestPanel.hidden = true;
+    $('#expAmount').focus();
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.suggest-wrap')) suggestPanel.hidden = true;
+  });
+
   // Rozbicie dzienne: wybór zakresu i klik na dzień
   $('#dailyChips').addEventListener('click', (e) => {
     const c = e.target.closest('.chip');
@@ -1066,7 +1226,7 @@ function bindEvents() {
       document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       listView = btn.dataset.view;
-      renderList(getMonth(currentKey));
+      renderList();
     };
   });
 
