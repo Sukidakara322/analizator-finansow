@@ -60,18 +60,23 @@ app.whenReady().then(() => {
     await wait(700);
     await shot('view-miesiac.png');                            // widok: Miesiąc
 
-    const nav = (v) => run(`document.querySelector('.nav-btn[data-view=${v}]').click();`);
-    await nav('analiza'); await wait(600); await shot('analiza-1.png');
-    await run(`window.scrollTo(0, 760);`); await wait(400); await shot('analiza-2.png');
-    await run(`window.scrollTo(0, document.body.scrollHeight);`); await wait(400); await shot('analiza-3.png');
-    await run(`window.scrollTo(0,0);`);
-    await nav('historia'); await wait(400); await shot('view-historia.png');
+    await run(`document.querySelector('#expDate .dp-trigger').click();`);
+    await wait(400); await shot('datepicker.png');             // kalendarz otwarty
+    await run(`document.querySelector('#expDate .dp-trigger').click();`);
 
-    // Widok mobilny – Analiza
-    await nav('analiza');
+    const nav = (v) => run(`document.querySelector('.nav-btn[data-view=${v}]').click();`);
+    await nav('historia'); await wait(400); await shot('view-historia.png');
+    await run(`document.querySelector('.edit-btn').click();`);
+    await wait(400); await shot('edit-modal.png');             // okno edycji wydatku
+    await run(`document.getElementById('editModal').hidden = true;`);
+
+    await nav('ustawienia'); await wait(400); await shot('view-ustawienia.png');
+
+    // Widok mobilny – Miesiąc (formularz z kalendarzem)
+    await nav('miesiac');
     win.setSize(430, 900);
     await wait(500);
-    await shot('mobile-analiza.png');
+    await shot('mobile.png');
 
     app.quit();
   });

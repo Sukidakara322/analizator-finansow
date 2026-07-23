@@ -150,7 +150,13 @@
               </div>
               <div class="field">
                 <label>Data</label>
-                <input type="date" id="expDate" />
+                <div class="datepicker" id="expDate">
+                  <button type="button" class="dp-trigger">
+                    <span class="dp-label">—</span>
+                    <svg class="dp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+                  </button>
+                  <div class="dp-panel" hidden></div>
+                </div>
               </div>
             </div>
             <button type="submit" class="primary-btn">+ Dodaj wydatek</button>
@@ -229,8 +235,17 @@
         </section>
 
         <section class="panel">
+          <h2>Stan początkowy</h2>
+          <p class="settings-line">Kwota bazowa, od której liczone jest saldo (podana przy rejestracji). Obecnie: <b id="initBalCurrent">—</b></p>
+          <div class="settings-actions">
+            <input type="number" id="initBalInput" step="0.01" placeholder="Nowa kwota" class="initbal-input" />
+            <button id="initBalSave" class="ghost-btn">Zapisz</button>
+          </div>
+        </section>
+
+        <section class="panel">
           <h2>Kategorie</h2>
-          <p class="settings-line">Dodawaj i usuwaj własne kategorie wydatków. Zmiany zapisują się w chmurze.</p>
+          <p class="settings-line">Dodawaj, usuwaj i zmieniaj nazwy własnych kategorii. Zmiany zapisują się w chmurze.</p>
           <button id="openCats" class="ghost-btn settings-btn">Zarządzaj kategoriami</button>
         </section>
 
@@ -280,6 +295,51 @@
           <button id="addCatBtn" class="primary-btn">Dodaj</button>
         </div>
         <ul id="catList" class="cat-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Okno edycji wydatku -->
+  <div class="modal-overlay" id="editModal" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h3>Edytuj wydatek</h3>
+        <button id="closeEditModal" class="icon-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="editForm" class="expense-form">
+          <div class="field">
+            <label>Kategoria</label>
+            <div class="dropdown" id="editCategory">
+              <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false">
+                <span class="dd-label">—</span>
+                <span class="dd-arrow"></span>
+              </button>
+              <div class="dd-panel" role="listbox" hidden></div>
+            </div>
+          </div>
+          <div class="field">
+            <label>Nazwa / opis</label>
+            <input type="text" id="editName" placeholder="np. Zakupy w Biedronce" />
+          </div>
+          <div class="field-inline">
+            <div class="field">
+              <label>Kwota</label>
+              <input type="number" id="editAmount" step="0.01" placeholder="0,00" />
+            </div>
+            <div class="field">
+              <label>Data</label>
+              <div class="datepicker" id="editDate">
+                <button type="button" class="dp-trigger">
+                  <span class="dp-label">—</span>
+                  <svg class="dp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+                </button>
+                <div class="dp-panel" hidden></div>
+              </div>
+            </div>
+          </div>
+          <button type="submit" class="primary-btn">Zapisz zmiany</button>
+        </form>
       </div>
     </div>
   </div>

@@ -5,6 +5,11 @@ let currentKey = null;      // klucz aktualnego miesiąca "RRRR-MM"
 let listView = 'grouped';   // widok listy: 'grouped' | 'flat'
 let dailyRange = null;      // zakres dni w rozbiciu dziennym: 7 | 14 | 21 | 'all' | null(auto)
 let dailyDay = null;        // wybrany dzień (numer) do podsumowania
+let expDatePicker = null;   // kalendarz w formularzu dodawania
+let editDatePicker = null;  // kalendarz w oknie edycji
+let editCategoryDropdown = null; // dropdown kategorii w oknie edycji
+let editingExpense = null;  // { id, key } aktualnie edytowany wydatek
+let editingCat = null;      // kategoria w trybie zmiany nazwy
 
 const MONTH_NAMES = [
   'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
@@ -114,6 +119,10 @@ function render() {
   const sign = delta >= 0 ? '+' : '';
   deltaEl.textContent = `Zmiana w tym miesiącu: ${sign}${fmt(delta)}`;
   deltaEl.style.color = delta >= 0 ? 'var(--green)' : 'var(--red)';
+
+  // Ustawienia: pokazuj aktualny stan początkowy
+  const ib = $('#initBalCurrent');
+  if (ib) ib.textContent = fmt(data.initialBalance);
 
   renderImpact(t);
   renderDonut(m);
@@ -230,9 +239,12 @@ function renderList(m) {
     }).join('');
   }
 
-  // Podpięcie usuwania
+  // Podpięcie usuwania i edycji
   container.querySelectorAll('.del-btn').forEach(btn => {
     btn.onclick = () => deleteExpense(btn.dataset.id);
+  });
+  container.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.onclick = () => openEditModal(btn.dataset.id);
   });
 }
 
@@ -245,9 +257,58 @@ function itemRow(e) {
     </div>
     <div class="ei-right">
       <span class="ei-amount">${fmt(e.amount)}</span>
+      <button class="edit-btn" data-id="${e.id}" title="Edytuj" aria-label="Edytuj">&#9998;</button>
       <button class="del-btn" data-id="${e.id}" title="Usuń" aria-label="Usuń">&#10005;</button>
     </div>
   </div>`;
+}
+
+// ---------- Edycja wydatku ----------
+function openEditModal(id) {
+  const m = getMonth(currentKey);
+  const e = m.expenses.find(x => x.id === id);
+  if (!e) return;
+  editingExpense = { id, key: currentKey };
+  // Jeśli kategoria wpisu została usunięta z listy, nadal pokaż ją jako opcję
+  const opts = data.categories.includes(e.category) ? data.categories : [e.category, ...data.categories];
+  editCategoryDropdown.setOptions(opts, e.category);
+  $('#editName').value = e.name || '';
+  $('#editAmount').value = e.amount;
+  editDatePicker.value = e.date || currentKey + '-01';
+  $('#editModal').hidden = false;
+}
+function closeEditModal() {
+  $('#editModal').hidden = true;
+  editingExpense = null;
+}
+function saveEdit(ev) {
+  ev.preventDefault();
+  if (!editingExpense) return;
+  const m = data.months[editingExpense.key];
+  if (!m) return;
+  const idx = m.expenses.findIndex(x => x.id === editingExpense.id);
+  if (idx < 0) return;
+  const amount = parseFloat($('#editAmount').value);
+  if (isNaN(amount) || amount <= 0) { toast('Podaj poprawną kwotę'); return; }
+
+  const e = m.expenses[idx];
+  e.category = editCategoryDropdown.value || e.category;
+  e.name = $('#editName').value.trim();
+  e.amount = Number(amount.toFixed(2));
+  e.date = editDatePicker.value || e.date;
+
+  // Zmiana daty na inny miesiąc -> przeniesienie wpisu do właściwego miesiąca
+  const newKey = (e.date || '').slice(0, 7);
+  if (newKey && newKey !== editingExpense.key) {
+    m.expenses.splice(idx, 1);
+    getMonth(newKey).expenses.push(e);
+    toast('Zapisano i przeniesiono do: ' + labelFromKey(newKey));
+  } else {
+    toast('Zapisano zmiany');
+  }
+  closeEditModal();
+  saveData(true);
+  render();
 }
 
 // ---------- Wykres porównania miesięcy ----------
@@ -628,6 +689,83 @@ function createDropdown(root) {
 
 let categoryDropdown = null;
 
+// ---------- Własny date picker (kalendarz w motywie aplikacji) ----------
+function createDatePicker(root) {
+  const trigger = root.querySelector('.dp-trigger');
+  const labelEl = root.querySelector('.dp-label');
+  const panel = root.querySelector('.dp-panel');
+  let value = null;           // 'RRRR-MM-DD'
+  let viewY = 0, viewM = 0;   // wyświetlany rok / miesiąc (1-12)
+  const WEEK = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'];
+
+  function fmtLabel(v) { if (!v) return '—'; const [y, m, d] = v.split('-'); return `${d}.${m}.${y}`; }
+  function todayStr() { const t = new Date(); return keyFromDate(t) + '-' + String(t.getDate()).padStart(2, '0'); }
+
+  function renderPanel() {
+    const first = new Date(viewY, viewM - 1, 1);
+    const dim = new Date(viewY, viewM, 0).getDate();
+    const lead = (first.getDay() + 6) % 7; // 0 = poniedziałek
+    const tStr = todayStr();
+    let cells = '';
+    for (let i = 0; i < lead; i++) cells += '<span class="dp-cell empty"></span>';
+    for (let d = 1; d <= dim; d++) {
+      const ds = `${viewY}-${String(viewM).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const cls = ['dp-cell'];
+      if (ds === value) cls.push('selected');
+      if (ds === tStr) cls.push('today');
+      cells += `<button type="button" class="${cls.join(' ')}" data-date="${ds}">${d}</button>`;
+    }
+    panel.innerHTML = `
+      <div class="dp-head">
+        <button type="button" class="dp-nav" data-nav="-1">◀</button>
+        <div class="dp-title">${MONTH_NAMES[viewM - 1]} ${viewY}</div>
+        <button type="button" class="dp-nav" data-nav="1">▶</button>
+      </div>
+      <div class="dp-week">${WEEK.map(w => `<span>${w}</span>`).join('')}</div>
+      <div class="dp-grid">${cells}</div>`;
+  }
+  function open() {
+    const base = value || todayStr();
+    const [y, m] = base.split('-').map(Number);
+    viewY = y; viewM = m;
+    renderPanel();
+    panel.hidden = false;
+    root.classList.add('open');
+    // Gdy brakuje miejsca pod polem — otwórz kalendarz w górę
+    const rect = trigger.getBoundingClientRect();
+    panel.classList.toggle('up', (window.innerHeight - rect.bottom) < 370);
+    document.addEventListener('click', onDoc, true);
+    document.addEventListener('keydown', onKey);
+  }
+  function close() {
+    panel.hidden = true;
+    root.classList.remove('open');
+    document.removeEventListener('click', onDoc, true);
+    document.removeEventListener('keydown', onKey);
+  }
+  function onDoc(e) { if (!root.contains(e.target)) close(); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+
+  trigger.addEventListener('click', () => { root.classList.contains('open') ? close() : open(); });
+  panel.addEventListener('click', (e) => {
+    const nav = e.target.closest('.dp-nav');
+    if (nav) {
+      viewM += Number(nav.dataset.nav);
+      if (viewM < 1) { viewM = 12; viewY--; }
+      if (viewM > 12) { viewM = 1; viewY++; }
+      renderPanel();
+      return;
+    }
+    const cell = e.target.closest('.dp-cell[data-date]');
+    if (cell) { value = cell.dataset.date; labelEl.textContent = fmtLabel(value); close(); }
+  });
+
+  return {
+    get value() { return value; },
+    set value(v) { value = v || null; labelEl.textContent = fmtLabel(value); }
+  };
+}
+
 // ---------- Kategorie (dropdown + modal) ----------
 function renderCategorySelect() {
   if (!categoryDropdown) categoryDropdown = createDropdown($('#expCategory'));
@@ -637,14 +775,29 @@ function renderCategorySelect() {
 
 function renderCatModalList() {
   const ul = $('#catList');
-  ul.innerHTML = data.categories.map(c => `<li>
-    <span>${escapeHtml(c)}</span>
-    <button class="del-btn" data-cat="${escapeHtml(c)}" title="Usuń" aria-label="Usuń">&#10005;</button>
-  </li>`).join('');
-  ul.querySelectorAll('.del-btn').forEach(btn => {
+  ul.innerHTML = data.categories.map(c => {
+    if (c === editingCat) {
+      return `<li class="editing">
+        <input type="text" id="catRenameInput" value="${escapeHtml(c)}" />
+        <span class="cat-item-actions">
+          <button class="cat-save" data-cat="${escapeHtml(c)}">Zapisz</button>
+          <button class="del-btn cat-cancel" title="Anuluj" aria-label="Anuluj">&#10005;</button>
+        </span>
+      </li>`;
+    }
+    return `<li>
+      <span>${escapeHtml(c)}</span>
+      <span class="cat-item-actions">
+        <button class="edit-btn" data-cat="${escapeHtml(c)}" title="Zmień nazwę" aria-label="Zmień nazwę">&#9998;</button>
+        <button class="del-btn" data-cat="${escapeHtml(c)}" title="Usuń" aria-label="Usuń">&#10005;</button>
+      </span>
+    </li>`;
+  }).join('');
+
+  // Usuwanie
+  ul.querySelectorAll('.del-btn:not(.cat-cancel)').forEach(btn => {
     btn.onclick = () => {
       const cat = btn.dataset.cat;
-      // Sprawdź, czy kategoria jest używana w bieżącym miesiącu
       const used = Object.values(data.months).some(m => m.expenses.some(e => e.category === cat));
       if (used && !confirm(`Kategoria "${cat}" jest używana w istniejących wydatkach. Usunąć mimo to? (wydatki pozostaną z tą nazwą)`)) return;
       data.categories = data.categories.filter(c => c !== cat);
@@ -653,6 +806,46 @@ function renderCatModalList() {
       toast('Usunięto kategorię');
     };
   });
+  // Zmiana nazwy — wejście w tryb edycji
+  ul.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.onclick = () => {
+      editingCat = btn.dataset.cat;
+      renderCatModalList();
+      const input = $('#catRenameInput');
+      if (input) { input.focus(); input.select(); }
+    };
+  });
+  const saveBtn = ul.querySelector('.cat-save');
+  if (saveBtn) saveBtn.onclick = () => renameCategory(saveBtn.dataset.cat);
+  const cancelBtn = ul.querySelector('.cat-cancel');
+  if (cancelBtn) cancelBtn.onclick = () => { editingCat = null; renderCatModalList(); };
+  const input = $('#catRenameInput');
+  if (input) input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); renameCategory(editingCat); }
+    if (e.key === 'Escape') { editingCat = null; renderCatModalList(); }
+  });
+}
+
+// Zmiana nazwy kategorii aktualizuje też wszystkie istniejące wydatki.
+function renameCategory(oldName) {
+  const input = $('#catRenameInput');
+  const newName = (input ? input.value : '').trim();
+  if (!newName) { toast('Podaj nazwę'); return; }
+  if (newName === oldName) { editingCat = null; renderCatModalList(); return; }
+  if (data.categories.some(c => c !== oldName && c.toLowerCase() === newName.toLowerCase())) {
+    toast('Taka kategoria już istnieje');
+    return;
+  }
+  data.categories = data.categories.map(c => (c === oldName ? newName : c));
+  for (const k in data.months) {
+    for (const e of (data.months[k].expenses || [])) if (e.category === oldName) e.category = newName;
+  }
+  editingCat = null;
+  saveData(true);
+  renderCategorySelect();
+  renderCatModalList();
+  render();
+  toast('Zmieniono nazwę kategorii');
 }
 
 // ---------- Operacje ----------
@@ -661,13 +854,14 @@ function addExpense(ev) {
   const category = categoryDropdown ? categoryDropdown.value : null;
   const name = $('#expName').value.trim();
   const amount = parseFloat($('#expAmount').value);
-  const date = $('#expDate').value || currentKey + '-01';
+  const date = (expDatePicker && expDatePicker.value) ? expDatePicker.value : currentKey + '-01';
 
   if (!category) { toast('Wybierz kategorię'); return; }
   if (isNaN(amount) || amount <= 0) { toast('Podaj poprawną kwotę'); return; }
 
-  const m = getMonth(currentKey);
-  m.expenses.push({
+  // Wydatek trafia do miesiąca wynikającego z wybranej daty (nie zawsze bieżącego).
+  const bucketKey = date.slice(0, 7);
+  getMonth(bucketKey).expenses.push({
     id: 'e' + Date.now() + Math.floor(performance.now() * 1000 % 1000),
     category, name, amount: Number(amount.toFixed(2)), date
   });
@@ -678,7 +872,7 @@ function addExpense(ev) {
   $('#expAmount').value = '';
   $('#expName').focus();
   render();
-  toast('Dodano wydatek');
+  toast(bucketKey !== currentKey ? 'Dodano do: ' + labelFromKey(bucketKey) : 'Dodano wydatek');
 }
 
 function deleteExpense(id) {
@@ -717,7 +911,12 @@ window.App = {
       if (of) of.hidden = true;
     }
 
-    $('#expDate').value = new Date().toISOString().slice(0, 10);
+    // Komponenty formularzy (kalendarze + dropdown edycji) — inicjalizacja raz
+    if (!expDatePicker) expDatePicker = createDatePicker($('#expDate'));
+    if (!editDatePicker) editDatePicker = createDatePicker($('#editDate'));
+    if (!editCategoryDropdown) editCategoryDropdown = createDropdown($('#editCategory'));
+    const now = new Date();
+    expDatePicker.value = keyFromDate(now) + '-' + String(now.getDate()).padStart(2, '0');
 
     renderCategorySelect();
     render();
@@ -786,10 +985,26 @@ function bindEvents() {
   });
 
   // Modal kategorii (z formularza ⚙ oraz z Ustawień)
-  const openCatsModal = () => { renderCatModalList(); $('#catModal').hidden = false; };
+  const openCatsModal = () => { editingCat = null; renderCatModalList(); $('#catModal').hidden = false; };
   $('#manageCats').onclick = openCatsModal;
   $('#openCats').onclick = openCatsModal;
-  $('#closeCatModal').onclick = () => { $('#catModal').hidden = true; };
+  $('#closeCatModal').onclick = () => { $('#catModal').hidden = true; editingCat = null; };
+
+  // Modal edycji wydatku
+  $('#editForm').addEventListener('submit', saveEdit);
+  $('#closeEditModal').onclick = closeEditModal;
+  $('#editModal').addEventListener('click', (e) => { if (e.target.id === 'editModal') closeEditModal(); });
+
+  // Stan początkowy (Ustawienia)
+  $('#initBalSave').onclick = () => {
+    const v = parseFloat($('#initBalInput').value);
+    if (isNaN(v)) { toast('Podaj poprawną kwotę'); return; }
+    data.initialBalance = Number(v.toFixed(2));
+    $('#initBalInput').value = '';
+    saveData(true);
+    render();
+    toast('Zapisano stan początkowy');
+  };
   $('#catModal').addEventListener('click', (e) => { if (e.target.id === 'catModal') $('#catModal').hidden = true; });
   $('#addCatBtn').onclick = addCategory;
   $('#newCatName').addEventListener('keydown', (e) => { if (e.key === 'Enter') addCategory(); });
@@ -833,5 +1048,5 @@ function addCategory() {
 
 // Ustaw datę formularza na wybrany miesiąc (dzień 1) przy zmianie miesiąca
 function syncFormDate() {
-  $('#expDate').value = currentKey + '-01';
+  if (expDatePicker) expDatePicker.value = currentKey + '-01';
 }

@@ -204,7 +204,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cur
 }
 .dropdown.open .dd-arrow { transform: rotate(-135deg); margin-top: 3px; border-color: var(--accent); }
 .dd-panel {
-  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 90;
   background: #1b1430; opacity: 1; border: 1px solid var(--border); border-radius: 12px;
   box-shadow: var(--shadow), var(--glow); padding: 6px; max-height: 280px; overflow-y: auto;
   animation: ddIn 0.14s ease;
@@ -219,6 +219,48 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cur
 .dd-option:hover, .dd-option.active { background: var(--grad-soft); }
 .dd-option.selected { color: #fff; font-weight: 600; }
 .dd-option.selected::after { content: '✓'; color: var(--accent); font-weight: 700; }
+
+/* ---------- Własny date picker (kalendarz) ---------- */
+.datepicker { position: relative; width: 100%; }
+.dp-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  padding: 11px 13px; border-radius: 12px; font-size: 14px; cursor: pointer; font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.dp-trigger:hover { border-color: var(--accent); }
+.datepicker.open .dp-trigger { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18); }
+.dp-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.dp-ico { width: 16px; height: 16px; color: var(--muted); flex-shrink: 0; }
+.dp-panel {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 90;
+  width: 278px; max-width: 92vw;
+  background: #1b1430; border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: var(--shadow), var(--glow); padding: 12px;
+  animation: ddIn 0.14s ease;
+}
+.dp-panel.up { top: auto; bottom: calc(100% + 6px); }
+.dp-panel[hidden] { display: none; }
+.dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.dp-title { font-size: 13px; font-weight: 700; text-transform: capitalize; }
+.dp-nav {
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  width: 30px; height: 30px; border-radius: 9px; cursor: pointer; font-size: 11px;
+  transition: border-color 0.15s;
+}
+.dp-nav:hover { border-color: var(--accent); }
+.dp-week { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
+.dp-week span { text-align: center; font-size: 10px; color: var(--muted); font-weight: 700; }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-cell {
+  height: 32px; border: none; background: transparent; color: var(--text);
+  border-radius: 9px; cursor: pointer; font-size: 12px; font-family: inherit;
+  transition: background 0.12s;
+}
+.dp-cell:hover { background: var(--grad-soft); }
+.dp-cell.today { box-shadow: inset 0 0 0 1px var(--accent); }
+.dp-cell.selected { background: var(--grad); color: #fff; font-weight: 700; box-shadow: var(--glow); }
+.dp-cell.empty { pointer-events: none; }
 
 .primary-btn {
   background: var(--grad); color: #fff; border: none; padding: 13px;
@@ -276,6 +318,22 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cur
   font-size: 15px; padding: 4px 6px; border-radius: 6px; transition: color 0.15s, background 0.15s;
 }
 .del-btn:hover { color: var(--red); background: rgba(255,107,107,0.12); }
+.edit-btn {
+  background: transparent; border: none; color: var(--muted); cursor: pointer;
+  font-size: 13px; padding: 4px 6px; border-radius: 6px; transition: color 0.15s, background 0.15s;
+}
+.edit-btn:hover { color: var(--accent); background: rgba(168, 85, 247, 0.12); }
+
+/* Wiersze kategorii w modalu (edycja/usuwanie) */
+.cat-item-actions { display: flex; align-items: center; gap: 2px; }
+.cat-list li.editing { gap: 10px; }
+.cat-list li.editing input { flex: 1; padding: 8px 10px; }
+.cat-save {
+  background: var(--grad); color: #fff; border: none; padding: 8px 12px; border-radius: 9px;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.cat-save:hover { filter: brightness(1.08); }
+.initbal-input { max-width: 220px; }
 .tag {
   font-size: 10px; padding: 2px 8px; border-radius: 20px; background: var(--bg);
   border: 1px solid var(--border); color: var(--muted);
